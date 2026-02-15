@@ -43,6 +43,40 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
     const xScale = (d) => (d / totalDuration) * (vbWidth - padding.left - padding.right) + padding.left;
     const yScale = (p) => vbHeight - padding.bottom - (p / maxPower) * (vbHeight - padding.top - padding.bottom);
     const barHeight = (p) => (p / maxPower) * (vbHeight - padding.top - padding.bottom);
+
+    // Expose scaling factors for external use (e.g., overlaying power data)
+    const meta = {
+        totalDuration,
+        maxPower,
+        padding,
+        vbWidth,
+        vbHeight
+    };
+
+    // Calculate axis data for HTML overlay and SVG grid lines
+    const yAxisData = [];
+    const yStep = Math.ceil(maxPower / 8 / 25) * 25 || 25;
+    let yGrid = '';
+
+    for(let p = 0; p <= maxPower; p += yStep) {
+        if (p > 0) {
+            // Percent position from bottom
+            const yPct = ((p / maxPower) * (vbHeight - padding.top - padding.bottom) + padding.bottom) / vbHeight * 100;
+             yAxisData.push({ val: p, pos: yPct });
+
+             // Generate SVG grid line
+             const y = yScale(p);
+             yGrid += `<line x1="${padding.left}" y1="${y}" x2="${vbWidth - padding.right}" y2="${y}" class="graph--grid-line" stroke="#333" stroke-width="1" vector-effect="non-scaling-stroke" />`;
+        }
+    }
+
+    const xAxisData = [];
+    const xStep = Math.max(60, Math.ceil(totalDuration / 6 / 60) * 60);
+    for(let t = 0; t <= totalDuration; t += xStep) {
+        // Percent position from left
+        const xPct = ((t / totalDuration) * (vbWidth - padding.left - padding.right) + padding.left) / vbWidth * 100;
+        xAxisData.push({ val: formatTime({value: t, format: 'mm:ss'}), pos: xPct });
+    }
     
     // Generate Bars
     let currentTime = 0;
@@ -64,7 +98,11 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
             const base_y = vbHeight - padding.bottom;
             const h = base_y - y; // correct height calculation
             
-            const zoneInfo = models.ftp.powerToZone(targetPower, ftp);
+            // Calculate zone based on original intended power (100% intensity)
+            // This ensures colors stay relative to the workout design, not the scaled intensity
+            const originalTargetPower = models.ftp.toAbsolute(power, ftp); 
+            const zoneInfo = models.ftp.powerToZone(originalTargetPower, ftp);
+            
             const zoneName = zoneInfo ? zoneInfo.name : 'gray'; // Safe access
             const zoneClass = `zone-${zoneName}`;
             const timeStr = formatTime({value: duration, format: 'mm:ss'});
@@ -73,6 +111,8 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
             // Build rect
             // Ensure width is at least something visible if duration is tiny but non-zero? 
             // Maybe not, correctness first.
+            // Using a slightly smaller height to avoid overlap with bottom border/axis? No need.
+            
             const rect = `<rect 
                 x="${x}" 
                 y="${y}" 
@@ -89,37 +129,34 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
         });
     }).join("");
     
-    // Generate Y-Axis Grid & Labels
-    const yStep = Math.ceil(maxPower / 5 / 50) * 50 || 50;
-    let yAxis = '';
-    for(let p = 0; p <= maxPower; p += yStep) {
-        const y = yScale(p);
-        if (p > 0) {
-            yAxis += `<line x1="${padding.left}" y1="${y}" x2="${vbWidth - padding.right}" y2="${y}" class="graph--grid-line" stroke="#333" stroke-width="1" />`;
-            yAxis += `<text x="${padding.left - 5}" y="${y}" class="graph--y-label" dy="0.3em" fill="#aaa" font-size="12" text-anchor="end">${p}</text>`;
-        }
-    }
+    // Generate Y-Axis Grid
+    // (Consolidated above)
     
-    // Generate X-Axis Labels (Time)
-    let xAxis = '';
-    const xStep = Math.max(60, Math.ceil(totalDuration / 6 / 60) * 60);
-    for(let t = 0; t <= totalDuration; t += xStep) {
-        const x = xScale(t);
-        const timeLabel = formatTime({value: t, format: 'mm:ss'});
-        xAxis += `<text x="${x}" y="${vbHeight - 5}" class="graph--x-label" fill="#aaa" font-size="12" text-anchor="middle">${timeLabel}</text>`;
-    }
-
     // FTP Line
     const ftpY = yScale(currentFtp);
-    const ftpLine = `<line x1="${padding.left}" y1="${ftpY}" x2="${vbWidth - padding.right}" y2="${ftpY}" class="graph--ftp-line" stroke-dasharray="5,5" stroke="#fff" />
-                     <text x="${padding.left + 5}" y="${ftpY - 5}" class="graph--ftp-label" fill="#fff" font-size="12">FTP ${intensity}%</text>`;
+    // Use vector-effect on ftp line too
+    const ftpLine = `<line x1="${padding.left}" y1="${ftpY}" x2="${vbWidth - padding.right}" y2="${ftpY}" class="graph--ftp-line" stroke-dasharray="5,5" stroke="#fff" vector-effect="non-scaling-stroke" />`;
 
-    return `<svg viewBox="0 0 ${vbWidth} ${vbHeight}" preserveAspectRatio="none" class="graph--svg" style="display: block; width: 100%; height: 100%;">
-        ${yAxis}
-        ${xAxis}
-        ${bars}
-        ${ftpLine}
-    </svg>`;
+    // Add containers for dynamic overlays
+    const overlays = `
+        <polyline id="power-line" fill="none" stroke="yellow" stroke-width="2" points="" vector-effect="non-scaling-stroke" />
+        <line id="progress-line" stroke="#fff" stroke-width="2" display="none" vector-effect="non-scaling-stroke" />
+    `;
+
+    return {
+        svg: `<svg viewBox="0 0 ${vbWidth} ${vbHeight}" preserveAspectRatio="none" class="graph--svg" style="display: block; width: 100%; height: 100%;">
+            ${yGrid}
+            ${bars}
+            ${ftpLine}
+            ${overlays}
+        </svg>`,
+        meta,
+        axis: { 
+            x: xAxisData, 
+            y: yAxisData, 
+            ftp: { val: `FTP ${intensity}%`, pos: ((currentFtp / maxPower) * (vbHeight - padding.top - padding.bottom) + padding.bottom) / vbHeight * 100 } 
+        }
+    };
 }
 
 
@@ -165,6 +202,8 @@ class WorkoutGraph extends HTMLElement {
         this.workoutStatus = "stopped";
         this.type = 'workout';
         this.ftp = 200; // Default FTP to avoid render issues before data loads
+        this.powerHistory = [];
+        this.graphMeta = null;
     }
     connectedCallback() {
         this.$graphCont = document.querySelector('#graph-workout') ?? this;
@@ -177,8 +216,10 @@ class WorkoutGraph extends HTMLElement {
         xf.sub(`db:intensity`, this.onIntensity.bind(this), this.signal);
         xf.sub('db:page', this.onPage.bind(this), this.signal);
         xf.sub('db:intervalIndex', this.onIntervalIndex.bind(this), this.signal);
-        xf.sub('db:lapTime', this.onLapTime.bind(this), this.signal);
+        // xf.sub('db:lapTime', this.onLapTime.bind(this), this.signal); // switching to elapsed for absolute position
+        xf.sub('db:elapsed', this.onElapsed.bind(this), this.signal);
         xf.sub('db:workoutStatus', this.onWorkoutStatus.bind(this), this.signal);
+        xf.sub('db:power', this.onPower.bind(this), this.signal);
 
         this.addEventListener('mouseover', this.onHover.bind(this), this.signal);
         this.addEventListener('mouseout', this.onMouseOut.bind(this), this.signal);
@@ -242,50 +283,101 @@ class WorkoutGraph extends HTMLElement {
     onWorkoutStatus(s) { this.workoutStatus = s; }
     onIntervalIndex(index) { this.currentIndex = index; }
     onLapTime(t) { 
-        this.updateProgress(t);
+        // Deprecated in favor of onElapsed
     }
     
-    updateProgress(lapTime) {
-         if(!this.workout || !this.workout.intervals || !exists(this.currentIndex)) return;
-         
-         const intervals = this.workout.intervals;
-         let accumulatedDuration = 0;
-         for(let i=0; i < this.currentIndex; i++) {
-             accumulatedDuration += intervals[i].duration;
-         }
-         
-         const currentTotalTime = accumulatedDuration + lapTime;
-         const totalWorkoutDuration = this.workout.meta?.duration || 
-                                      intervals.reduce((a,b)=>a+(b.duration||0), 0);
+    onPower(p) {
+        this.currentPower = p;
+    }
 
-         if(totalWorkoutDuration <= 0) return;
+    onElapsed(t) {
+        if(!this.graphMeta || (this.workoutStatus !== 'running' && this.workoutStatus !== 'paused')) return;
+        
+        // Add point to history
+        // Only if we have a valid power reading
+        // Using currentPower which is updated by db:power subscription
+        if (exists(this.currentPower)) {
+            // Append explicit update call
+            this.updateOverlays(t, this.currentPower);
+        }
+    }
 
-         // Fixed ViewBox Width is 1000
-         const x = (currentTotalTime / totalWorkoutDuration) * 1000;
+    updateOverlays(time, power) {
+         if (!this.graphMeta) return;
+         const { totalDuration, maxPower, padding, vbWidth, vbHeight } = this.graphMeta;
+         
+         // Project Time (X)
+         const availableWidth = vbWidth - padding.left - padding.right;
+         // Ensure we don't go beyond graph
+         const clampedTime = Math.min(time, totalDuration);
+         const x = (clampedTime / totalDuration) * availableWidth + padding.left;
+         
+         // Project Power (Y)
+         // Note: Y axis is inverted in SVG (0 is top)
+         const availableHeight = vbHeight - padding.top - padding.bottom;
+         const clampedPower = Math.min(power, maxPower); // Clamp power so it doesn't go off chart
+         const y = vbHeight - padding.bottom - (clampedPower / maxPower) * availableHeight;
          
          const svg = this.querySelector('svg');
-         if(svg) {
-             let progressLine = svg.querySelector('#progress-line');
-             if(!progressLine) {
-                 progressLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                 progressLine.id = 'progress-line';
-                 progressLine.setAttribute('y1', '0');
-                 progressLine.setAttribute('y2', '400'); // Fixed Viewbox Height 
-                 progressLine.setAttribute('stroke', '#fff'); 
-                 progressLine.setAttribute('stroke-width', '4'); // Thicker for visibility
-                 progressLine.setAttribute('vector-effect', 'non-scaling-stroke');
-                 svg.appendChild(progressLine);
-             }
+         if(!svg) return;
+         
+         // Update Progress Line
+         let progressLine = svg.querySelector('#progress-line');
+         if(progressLine) {
              progressLine.setAttribute('x1', x);
              progressLine.setAttribute('x2', x);
+             progressLine.setAttribute('y1', padding.top); 
+             progressLine.setAttribute('y2', vbHeight - padding.bottom);
+             progressLine.style.display = 'block';
          }
+         
+         // Update Power Line
+         let powerLine = svg.querySelector('#power-line');
+         if(powerLine) {
+             const newPoint = `${x},${y}`;
+             const currentPoints = powerLine.getAttribute('points') || "";
+             const separator = currentPoints ? ' ' : '';
+             // Limit points string length if necessary, but SVG handles many points well.
+             powerLine.setAttribute('points', currentPoints + separator + newPoint);
+         }
+    }
+
+    updateProgress(lapTime) {
+         // Deprecated in favor of onElapsed
     } 
 
     render() {
         if(this.type === 'workout' && this.workout && this.workout.intervals) {
             // Use standard 1000x400 viewBox
-            const svgContent = intervalsToGraph(this.workout, this.ftp, {width: 1000, height: 400}, this.intensity ?? 100);
-            this.innerHTML = `${svgContent}<div class="graph--info--cont graph--info-overlay"></div>`;
+            const result = intervalsToGraph(this.workout, this.ftp, {width: 1000, height: 400}, this.intensity ?? 100);
+            
+            let svgContent = '';
+            let axisHtml = '';
+            
+            if (typeof result === 'object' && result.svg) {
+                svgContent = result.svg;
+                this.graphMeta = result.meta;
+                
+                // Generate Axis HTML
+                if (result.axis) {
+                    const yLabels = result.axis.y.map(a => `<div class="graph--y-label" style="bottom: ${a.pos}%;">${a.val}</div>`).join('');
+                    const xLabels = result.axis.x.map(a => `<div class="graph--x-label" style="left: ${a.pos}%;">${a.val}</div>`).join('');
+                    const ftpLabel = `<div class="graph--ftp-label" style="bottom: ${result.axis.ftp.pos}%; right: 5px;">${result.axis.ftp.val}</div>`;
+                    
+                    axisHtml = `<div class="graph--axis-layer">${yLabels}${xLabels}${ftpLabel}</div>`;
+                }
+            } else {
+                svgContent = result;
+                this.graphMeta = null; 
+            }
+
+            this.innerHTML = `${svgContent}${axisHtml}<div class="graph--info--cont"></div>`;
+            this.powerHistory = []; 
+            // Clear existing points on new render
+            // Re-select power-line since innerHTML overwrote it
+            const pl = this.querySelector('#power-line');
+            if(pl) pl.setAttribute('points', '');
+
         } else if (this.type === 'course' && this.workout) {
              const rect = this.getBoundingClientRect(); 
              const width = rect.width || 1000;
