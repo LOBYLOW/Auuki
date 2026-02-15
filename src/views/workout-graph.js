@@ -2,196 +2,160 @@ import { xf, exists, existance, equals, clamp, debounce, toFixed  } from '../fun
 import { formatTime, translate } from '../utils.js';
 import { models } from '../models/models.js';
 import { g } from './graph.js';
-
-
-
-function powerToHeight(power, powerMax, viewPort) {
-    const height = translate(power, 0, powerMax, 0, viewPort.height * 0.90);
-    // console.log(`${viewPort.height} -> ${height}`);
-    if(height < (viewPort.height * 0.10)) {
-        return viewPort.height * 0.14;
-    }
-    return height;
-}
-
-function intervalToWidth(intervalDuration, totalDuration, totalWidth) {
-    return clamp(1,
-                 totalDuration,
-                 translate(intervalDuration, 0, totalDuration, 0, totalWidth)
-                );
-}
-
-function intervalsToMaxPower(intervals, ftp) {
-    return intervals.reduce((highest, interval) => {
-        interval.steps.forEach((step) => {
-            const power = models.ftp.toAbsolute(step.power, ftp);
-            if(power > highest) highest = power;
-        });
-        return highest;
-    }, ftp * 1.6);
-}
-
-function Interval(acc, interval, width, ftp, powerMax, viewPort) {
-    const stepsLength = interval.steps.length;
-
-    return acc + interval.steps.reduce((a, step) => {
-        const power    = models.ftp.toAbsolute(step.power, ftp) ?? 0;
-        const cadence  = step.cadence;
-        const slope    = step.slope;
-        const duration = step.duration;
-        const width    = 100 / stepsLength;
-        const height   = powerToHeight(power, powerMax, viewPort);
-        const zone     = (models.ftp.powerToZone(power, ftp)).name;
-        const infoTime = formatTime({value: duration, format: 'mm:ss'});
-
-        const powerAttr    = exists(power)    ? `power="${power}"` : '';
-        const cadenceAttr  = exists(cadence)  ? `cadence="${cadence}"` : '';
-        const slopeAttr    = exists(slope)    ? `slope="${slope}"` : '';
-        const durationAttr = exists(duration) ? `duration="${infoTime}"` : '';
-
-        return a +
-            `<div class="graph--bar zone-${zone}" style="height: ${height}px; width: ${width}%" ${powerAttr} ${cadenceAttr} ${slopeAttr} ${durationAttr}></div>`;
-    }, `<div class="graph--bar-group" style="width: ${width}px;">`) + `</div>`;
-}
+// Helpers replaced by SVG logic in intervalsToGraph
 
 
 function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
-    const totalWidth    = viewPort.width;
-    const intervals     = workout.intervals;
-    const totalDuration = workout.meta.duration; // in seconds
+    const intervals = workout.intervals || [];
+    // const totalDuration = workout.meta.duration || 1; // Removed to fix duplicate declaration
     const intensityFactor = intensity / 100;
     
-    // Helper to calculate target power for a step based on intensity
-    const getTargetPower = (stepPower) => {
-        // models.ftp.toAbsolute converts relative (0.5) to watts (100W if FTP=200)
-        // or keeps absolute (150) as watts.
-        // Then apply intensity factor.
-        return Math.round(models.ftp.toAbsolute(stepPower, ftp) * intensityFactor);
-    };
+    let maxPower = 0;
+    let computedDuration = 0;
 
-    // Calculate max power for scaling
-    // Use a base max that scales with intensity too, or stick to raw max power in workout.
-    let maxPower = intervals.reduce((highest, interval) => {
-        interval.steps.forEach((step) => {
-            const power = getTargetPower(step.power);
-            if(power > highest) highest = power;
-        });
-        return highest;
-    }, 0);
+    // First pass: Calculate total duration and max power from intervals/steps directly
+    // This is more reliable than meta.duration which might be stale or incorrect
+    intervals.forEach(interval => {
+        if (interval.steps) {
+            interval.steps.forEach(step => {
+                computedDuration += (step.duration || 0);
+                const power = step.power || 0;
+                const p = models.ftp.toAbsolute(power, ftp) * intensityFactor;
+                if (p > maxPower) maxPower = p;
+            });
+        }
+    });
+
+    // Use computed duration if available, otherwise fallback (avoid division by zero)
+    const totalDuration = computedDuration || workout.meta.duration || 1;
     
-    // Ensure graph has headroom above max power or FTP, whichever is higher
+    // Calculate max power for Y-axis scaling
     const currentFtp = Math.round(ftp * intensityFactor);
     maxPower = Math.max(maxPower, currentFtp * 1.5);
 
-    // Generate Graph Bars
-    const barsHtml = intervals.reduce((acc, interval) => {
-        let width = 1;
 
-        if(exists(interval.duration)) {
-            width = intervalToWidth(interval.duration, totalDuration, totalWidth);
-            const stepsLength = interval.steps.length;
-            
-            // Build inner HTML for this interval group
-            const groupInner = interval.steps.reduce((a, step) => {
-                const targetPower = getTargetPower(step.power);
-                const height      = powerToHeight(targetPower, maxPower, viewPort);
-                const stepWidth   = 100 / stepsLength;
-                
-                // Color zone based on adjusted power relative to user's real FTP base capability
-                // (High intensity workout might push you into red zone constantly)
-                const zoneInfo = models.ftp.powerToZone(targetPower, ftp);
-                const zoneClass = `zone-${zoneInfo.name}`;
-                
-                const timeStr = formatTime({value: step.duration, format: 'mm:ss'});
-                
-                // Attributes for tooltip/hover
-                const attrs = [
-                    `power="${targetPower}"`,
-                    exists(step.cadence) ? `cadence="${step.cadence}"` : '',
-                    exists(step.slope) ? `slope="${step.slope}"` : '',
-                    `duration="${timeStr}"`
-                ].join(' ');
-
-                return a + `<div class="graph--bar ${zoneClass}" style="height: ${height}px; width: ${stepWidth}%" ${attrs}></div>`;
-            }, '');
-
-            return acc + `<div class="graph--bar-group" style="width: ${width}px; flex-shrink: 0;">${groupInner}</div>`;
-        }
-        return acc;
-    }, '');
-
-    // Generate Y-Axis Labels (every 50W or so depending on scale)
-    let yLabelsHtml = '';
-    const yStep = Math.ceil(maxPower / 5 / 50) * 50 || 50; // coarse steps
-    for(let p = yStep; p < maxPower; p += yStep) {
-        const h = powerToHeight(p, maxPower, viewPort);
-        yLabelsHtml += `<div class="graph--y-label" style="bottom: ${h}px;">${p}</div>`;
-    }
-
-    // Generate X-Axis Labels (Time)
-    // Step depending on total duration. 5 mins if > 30 mins, 2 mins if < 30?
-    // Let's pick a step that gives us ~5-8 labels.
-    const xStepSeconds = Math.max(60, Math.ceil(totalDuration / 8 / 60) * 60); // Round grid to nearest minute
-    let xLabelsHtml = '';
+    // SVG ViewBox dimensions (normalized coordinate system)
+    const vbWidth = 1000;
+    const vbHeight = 400;
+    const padding = { top: 20, right: 30, bottom: 30, left: 40 };
     
-    // Only generate X-axis if valid duration
-    if(totalDuration > 0) {
-        for(let t = xStepSeconds; t < totalDuration; t += xStepSeconds) {
-            const xPos = translate(t, 0, totalDuration, 0, totalWidth);
-            const timeLabel = formatTime({value: t, format: 'mm:ss'});
-            xLabelsHtml += `<div class="graph--x-label" style="left: ${xPos}px;">${timeLabel}</div>`;
+    // Scales: Map data to SVG coordinates
+    const xScale = (d) => (d / totalDuration) * (vbWidth - padding.left - padding.right) + padding.left;
+    const yScale = (p) => vbHeight - padding.bottom - (p / maxPower) * (vbHeight - padding.top - padding.bottom);
+    const barHeight = (p) => (p / maxPower) * (vbHeight - padding.top - padding.bottom);
+    
+    // Generate Bars
+    let currentTime = 0;
+    const bars = intervals.flatMap((interval, i) => {
+        // if (!interval.duration) return []; // Removed check as duration might be implicit from steps
+        if (!interval.steps || interval.steps.length === 0) return [];
+        
+        return interval.steps.map((step, j) => {
+            const duration = step.duration || 0;
+            const power = step.power || 0;
+            const targetPower = models.ftp.toAbsolute(power, ftp) * intensityFactor;
+            
+            const x = xScale(currentTime);
+            // Calculate width based on end time to avoid accumulation errors, or just relative width
+            const endX = xScale(currentTime + duration);
+            const width = endX - x;
+            
+            const y = yScale(targetPower); // Y for top of bar
+            const base_y = vbHeight - padding.bottom;
+            const h = base_y - y; // correct height calculation
+            
+            const zoneInfo = models.ftp.powerToZone(targetPower, ftp);
+            const zoneName = zoneInfo ? zoneInfo.name : 'gray'; // Safe access
+            const zoneClass = `zone-${zoneName}`;
+            const timeStr = formatTime({value: duration, format: 'mm:ss'});
+            const startTimeStr = formatTime({value: currentTime, format: 'mm:ss'});
+            
+            // Build rect
+            // Ensure width is at least something visible if duration is tiny but non-zero? 
+            // Maybe not, correctness first.
+            const rect = `<rect 
+                x="${x}" 
+                y="${y}" 
+                width="${Math.max(width, 0)}" 
+                height="${Math.max(h, 0)}"
+                class="graph--bar ${zoneClass}"
+                data-power="${Math.round(targetPower)}"
+                data-duration="${timeStr}"
+                data-start="${startTimeStr}"
+            ><title>${Math.round(targetPower)}W (${timeStr})</title></rect>`; 
+            
+            currentTime += duration;
+            return rect;
+        });
+    }).join("");
+    
+    // Generate Y-Axis Grid & Labels
+    const yStep = Math.ceil(maxPower / 5 / 50) * 50 || 50;
+    let yAxis = '';
+    for(let p = 0; p <= maxPower; p += yStep) {
+        const y = yScale(p);
+        if (p > 0) {
+            yAxis += `<line x1="${padding.left}" y1="${y}" x2="${vbWidth - padding.right}" y2="${y}" class="graph--grid-line" stroke="#333" stroke-width="1" />`;
+            yAxis += `<text x="${padding.left - 5}" y="${y}" class="graph--y-label" dy="0.3em" fill="#aaa" font-size="12" text-anchor="end">${p}</text>`;
         }
+    }
+    
+    // Generate X-Axis Labels (Time)
+    let xAxis = '';
+    const xStep = Math.max(60, Math.ceil(totalDuration / 6 / 60) * 60);
+    for(let t = 0; t <= totalDuration; t += xStep) {
+        const x = xScale(t);
+        const timeLabel = formatTime({value: t, format: 'mm:ss'});
+        xAxis += `<text x="${x}" y="${vbHeight - 5}" class="graph--x-label" fill="#aaa" font-size="12" text-anchor="middle">${timeLabel}</text>`;
     }
 
     // FTP Line
-    const ftpHeight = powerToHeight(currentFtp, maxPower, viewPort);
-    const ftpLineHtml = `
-        <div class="graph--ftp-line" style="bottom: ${ftpHeight}px;"></div>
-        <div class="graph--ftp-label" style="bottom: ${ftpHeight}px;">FTP ${intensity}% (${currentFtp}W)</div>
-    `;
+    const ftpY = yScale(currentFtp);
+    const ftpLine = `<line x1="${padding.left}" y1="${ftpY}" x2="${vbWidth - padding.right}" y2="${ftpY}" class="graph--ftp-line" stroke-dasharray="5,5" stroke="#fff" />
+                     <text x="${padding.left + 5}" y="${ftpY - 5}" class="graph--ftp-label" fill="#fff" font-size="12">FTP ${intensity}%</text>`;
 
-    return `
-        <div class="graph--y-axis" style="height: ${viewPort.height}px;">
-            ${yLabelsHtml}
-        </div>
-        <div class="graph--x-axis" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 20px; pointer-events: none;">
-            ${xLabelsHtml}
-        </div>
-        ${ftpLineHtml}
-        <div class="graph--bars-container" style="display: flex; align-items: flex-end; height: 100%; width: 100%;">
-            ${barsHtml}
-        </div>
-        <div class="graph--info--cont"></div>
-    `;
+    return `<svg viewBox="0 0 ${vbWidth} ${vbHeight}" preserveAspectRatio="none" class="graph--svg" style="display: block; width: 100%; height: 100%;">
+        ${yAxis}
+        ${xAxis}
+        ${bars}
+        ${ftpLine}
+    </svg>`;
 }
 
-function renderInfo(args = {}) {
-    const power    = exists(args.power)    ? `${args.power}W `: '';
-    const cadence  = exists(args.cadence)  ? `${args.cadence}rpm `: '';
-    const slope    = exists(args.slope)    ? `${toFixed(args.slope, 2)}%` : '';
-    const duration = exists(args.duration) ? `${args.duration}min `: '';
-    const distance = exists(args.distance) ? `${args.distance}m `: '';
-    const dom      = args.dom;
 
-    const intervalLeft = args.intervalRect.left;
-    const contLeft     = args.contRect.left;
-    const contWidth    = args.contRect.width;
-    const left         = intervalLeft - contLeft;
-    const bottom       = args.intervalRect.height;
+function renderInfoFunc(args = {}) {
+    // ... renamed to avoid collision and confusion ...
+    const power    = exists(args.power)    ? `${args.power}W `: '';
+    const cadence  = args.cadence ? `${args.cadence}rpm `: '';
+    const slope    = args.slope ? `${toFixed(args.slope, 2)}%` : '';
+    const duration = args.duration ? `${args.duration} `: '';
+    const start    = args.start ? `(@ ${args.start})` : '';
+
+    const dom = args.dom;
+    if (!dom || !dom.info) return;
 
     dom.info.style.display = 'block';
-    dom.info.innerHTML = `<div>${power}</div><div>${cadence}</div><div>${slope}</div><div class="graph--info--time">${duration}</div>`;
+    dom.info.innerHTML = `
+        <div style="font-weight:bold; font-size:1.1em; margin-bottom:0.2em;">${power}</div>
+        <div style="font-size:0.9em; opacity:0.8;">Duration: ${duration} ${start}</div>
+        ${cadence ? `<div style="font-size:0.9em;">Cadence: ${cadence}</div>` : ''}
+        ${slope ? `<div style="font-size:0.9em;">Slope: ${slope}</div>` : ''}
+    `;
 
-    const width  = dom.info.getBoundingClientRect().width;
-    const height = dom.info.getBoundingClientRect().height;
-    const minHeight = (bottom + height + (40)); // fix 40
-    dom.info.style.left = `min(${contWidth}px - ${width}px, ${left}px)`;
+    const tooltipWidth = dom.info.offsetWidth || 120;
+    const tooltipHeight = dom.info.offsetHeight || 60;
+    const intervalRect = args.intervalRect;
+    
+    let left = intervalRect.left + (intervalRect.width / 2) - (tooltipWidth / 2);
+    let top = intervalRect.top - tooltipHeight - 10;
+    
+    if (left < 10) left = 10;
+    if (left + tooltipWidth > window.innerWidth - 10) left = window.innerWidth - tooltipWidth - 10;
+    if (top < 10) top = intervalRect.bottom + 10;
 
-    if(window.innerHeight > minHeight) {
-        dom.info.style.bottom = bottom;
-    } else {
-        dom.info.style.bottom = bottom - (minHeight - window.innerHeight);
-    }
+    dom.info.style.left = `${left}px`;
+    dom.info.style.top = `${top}px`;
+    dom.info.classList.add('graph--info-overlay');
 }
 
 class WorkoutGraph extends HTMLElement {
@@ -199,54 +163,28 @@ class WorkoutGraph extends HTMLElement {
         super();
         this.workout = {};
         this.workoutStatus = "stopped";
-        this.metricValue = 0;
-        this.index = 0;
-        this.minHeight = 30;
         this.type = 'workout';
+        this.ftp = 200; // Default FTP to avoid render issues before data loads
     }
     connectedCallback() {
-        const self = this;
-        this.dom = {};
         this.$graphCont = document.querySelector('#graph-workout') ?? this;
-        this.viewPort = this.getViewPort();
+        
         this.abortController = new AbortController();
-        this.signal = { signal: self.abortController.signal };
-
-        this.debounced = {
-            onWindowResize: debounce(
-                self.onWindowResize.bind(this), 300, {trailing: true, leading: false},
-            ),
-        };
-
+        this.signal = { signal: this.abortController.signal };
 
         xf.sub(`db:workout`, this.onWorkout.bind(this), this.signal);
         xf.sub(`db:ftp`, this.onFTP.bind(this), this.signal);
         xf.sub(`db:intensity`, this.onIntensity.bind(this), this.signal);
-
-        xf.sub('db:intervalIndex', this.onIntervalIndex.bind(this), this.signal);
-        xf.sub('db:distance', this.onDistance.bind(this), this.signal);
         xf.sub('db:page', this.onPage.bind(this), this.signal);
+        xf.sub('db:intervalIndex', this.onIntervalIndex.bind(this), this.signal);
         xf.sub('db:lapTime', this.onLapTime.bind(this), this.signal);
         xf.sub('db:workoutStatus', this.onWorkoutStatus.bind(this), this.signal);
 
         this.addEventListener('mouseover', this.onHover.bind(this), this.signal);
         this.addEventListener('mouseout', this.onMouseOut.bind(this), this.signal);
-        // window.addEventListener('resize', this.debounced.onWindowResize.bind(this), this.signal);
-        window.addEventListener('resize', this.onWindowResize.bind(this), this.signal);
     }
     disconnectedCallback() {
         this.abortController.abort();
-    }
-    getViewPort() {
-        // const rect = this.getBoundingClientRect();
-        const rect = this.$graphCont.getBoundingClientRect();
-
-        return {
-            width: rect.width,
-            height: rect.height,
-            left: rect.left,
-            aspectRatio: rect.width / rect.height,
-        };
     }
     onFTP(value) {
         this.ftp = value;
@@ -258,148 +196,110 @@ class WorkoutGraph extends HTMLElement {
     }
     onPage(page) {
         if(equals(page, 'home')) {
-            const viewPort = this.getViewPort();
-            this.viewPort = viewPort;
             this.render();
         }
     }
-    onWindowResize(e) {
-        const viewPort = this.getViewPort();
-        if(equals(viewPort.width, 0)) return;
-        this.viewPort = viewPort;
-        this.render();
-    }
+    
     onHover(e) {
-        const self = this;
-        const target = e.target.closest('.graph--bar');
-        if(exists(target)) {
-            const power        = target.getAttribute('power');
-            const cadence      = target.getAttribute('cadence');
-            const slope        = target.getAttribute('slope');
-            const duration     = target.getAttribute('duration');
-            const distance     = target.getAttribute('distance');
+        const target = e.target.closest('rect'); 
+        // We only care about interval bars which should have data attributes
+        if(target && target.dataset.power) {
+            const power    = target.dataset.power;
+            const cadence  = target.dataset.cadence;
+            const duration = target.dataset.duration;
+            const start    = target.dataset.start;
+            const slope    = target.getAttribute('slope'); // for course/slope mode
+             
             const intervalRect = target.getBoundingClientRect();
-
+            
             this.renderInfo({
-                power,
-                cadence,
-                slope,
-                duration,
-                distance,
+                power, cadence, slope, duration, start,
                 intervalRect,
-                contRect: self.viewPort,
-                dom: self.dom,
+                dom: { info: this.querySelector('.graph--info--cont') },
             });
+        } else if (e.target.closest('polygon') && e.target.getAttribute('slope')) {
+             // Handle course graph hover
+             const target = e.target;
+             const slope = target.getAttribute('slope');
+             const intervalRect = target.getBoundingClientRect();
+             this.renderInfo({
+                 slope,
+                 intervalRect,
+                 dom: { info: this.querySelector('.graph--info--cont') },
+             });
         }
     }
     onMouseOut(e) {
-        this.dom.info.style.display = 'none';
+        const info = this.querySelector('.graph--info--cont');
+        if(info) info.style.display = 'none';
     }
     onWorkout(value) {
-        this.workout = value; // this.workout = Object.assign({}, value);
-
-        if(exists(value.intervals)) {
-            this.type = 'workout';
-        }
-        if(exists(value.points)) {
-            this.type = 'course';
-        }
-
-        if(!equals(this.viewPort.width, 0)) {
-            this.render();
-        }
+        this.workout = value;
+        // Check if value exists before checking points
+        this.type = (value && value.points) ? 'course' : 'workout';
+        this.render();
     }
-    onWorkoutStatus(value) {
-        this.workoutStatus = value;
+    onWorkoutStatus(s) { this.workoutStatus = s; }
+    onIntervalIndex(index) { this.currentIndex = index; }
+    onLapTime(t) { 
+        this.updateProgress(t);
     }
-    onIntervalIndex(index) {
-        const self = this;
-        this.index = index;
-        this.progress({index: self.index, dom: self.dom, parent: self, lapTime: self.lapTime});
-    }
-    onDistance(distance) {
-        const self = this;
-        if(exists(this.workout?.points)) {
-            const totalDistance = this.workout.meta.distance;
-            const $dom = self.dom;
-            const $parent = self;
-            const height = $parent.getBoundingClientRect().height;
-            const width = $parent.getBoundingClientRect().width;
-            const left = translate(distance, 0, totalDistance, 0, width);
-            $dom.active.style.left   = `${left % width}px`;
-            $dom.active.style.width  = `2px`;
-            $dom.active.style.height = `${height}px`;
+    
+    updateProgress(lapTime) {
+         if(!this.workout || !this.workout.intervals || !exists(this.currentIndex)) return;
+         
+         const intervals = this.workout.intervals;
+         let accumulatedDuration = 0;
+         for(let i=0; i < this.currentIndex; i++) {
+             accumulatedDuration += intervals[i].duration;
+         }
+         
+         const currentTotalTime = accumulatedDuration + lapTime;
+         const totalWorkoutDuration = this.workout.meta?.duration || 
+                                      intervals.reduce((a,b)=>a+(b.duration||0), 0);
 
-            if(equals(this.type, 'course')) {
-                $dom.progress.style.left   = `${left % width}px`;
-            }
-        }
-        return;
-    }
-    onLapTime(lapTime) {
-        const self = this;
-        this.lapTime = lapTime;
-        if(equals(this.type, 'workout')) {
-            this.progress({index: self.index, dom: self.dom, parent: self, lapTime: self.lapTime});
-        }
-    }
-    progress(args = {}) {
-        if(this.workoutStatus === "done") {
-            return;
-        }
-        
-        const index = args.index ?? 0;
-        
-        // Safety check if intervals are rendered
-        if (empty(this.dom.intervals)) return;
-        if (!exists(this.workout.intervals[index])) return;
+         if(totalWorkoutDuration <= 0) return;
 
-        const lapTime               = args.lapTime ?? this.workout.intervals[index].duration;
-        const $dom                  = args.dom;
-        const $parent               = args.parent;
-        const $container            = this.querySelector('.graph--bars-container');
-        // Fallback or safety if container not found
-        if (!$container) return;
+         // Fixed ViewBox Width is 1000
+         const x = (currentTotalTime / totalWorkoutDuration) * 1000;
+         
+         const svg = this.querySelector('svg');
+         if(svg) {
+             let progressLine = svg.querySelector('#progress-line');
+             if(!progressLine) {
+                 progressLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                 progressLine.id = 'progress-line';
+                 progressLine.setAttribute('y1', '0');
+                 progressLine.setAttribute('y2', '400'); // Fixed Viewbox Height 
+                 progressLine.setAttribute('stroke', '#fff'); 
+                 progressLine.setAttribute('stroke-width', '4'); // Thicker for visibility
+                 progressLine.setAttribute('vector-effect', 'non-scaling-stroke');
+                 svg.appendChild(progressLine);
+             }
+             progressLine.setAttribute('x1', x);
+             progressLine.setAttribute('x2', x);
+         }
+    } 
 
-        const rect                  = $dom.intervals[index].getBoundingClientRect();
-        const parentRect            = $container.getBoundingClientRect(); 
-        const left                  = rect.left - parentRect.left;
-        const lapPercentageComplete = 1 - (lapTime / this.workout.intervals[index].duration);
-
-        $dom.active.style.left   = `${left}px`;
-        $dom.active.style.width  = `${rect.width}px`;
-        $dom.active.style.height = `${parentRect.height}px`;
-
-        $dom.progress.style.width = `${left + (rect.width * lapPercentageComplete)}px`;
-    }
     render() {
-        const self = this;
-        const progress = '<div id="progress" class="progress"></div><div id="progress-active"></div>';
-
-        if(equals(this.type, 'workout')) {
-            this.innerHTML = progress +
-                intervalsToGraph(this.workout, this.ftp, this.viewPort, this.intensity ?? 100);
-
-            this.dom.info      = this.querySelector('.graph--info--cont');
-            this.dom.progress  = this.querySelector('#progress');
-            this.dom.active    = this.querySelector('#progress-active');
-            this.dom.intervals = this.querySelectorAll('.graph--bar-group');
-            this.dom.steps     = this.querySelectorAll('.graph--bar');
-
-            this.progress({index: self.index, dom: self.dom, parent: self, lapTime: self.lapTime});
-        }
-
-        if(equals(this.type, 'course')) {
-            this.innerHTML = progress +
-                courseToGraph(this.workout, this.viewPort);
-
-            this.dom.info     = this.querySelector('.graph--info--cont');
-            this.dom.progress = this.querySelector('#progress');
-            this.dom.active   = this.querySelector('#progress-active');
+        if(this.type === 'workout' && this.workout && this.workout.intervals) {
+            // Use standard 1000x400 viewBox
+            const svgContent = intervalsToGraph(this.workout, this.ftp, {width: 1000, height: 400}, this.intensity ?? 100);
+            this.innerHTML = `${svgContent}<div class="graph--info--cont graph--info-overlay"></div>`;
+        } else if (this.type === 'course' && this.workout) {
+             const rect = this.getBoundingClientRect(); 
+             const width = rect.width || 1000;
+             const height = rect.height || 400;
+             const args = { width, height, aspectRatio: width/height };
+             this.innerHTML = courseToGraph(this.workout, args);
+             // Ensure info container exists for course too
+             if(!this.querySelector('.graph--info--cont')) {
+                 this.innerHTML += `<div class="graph--info--cont graph--info-overlay"></div>`;
+             }
         }
     }
     renderInfo(args = {}) {
-        renderInfo(args);
+        renderInfoFunc(args);
     }
 }
 
@@ -469,6 +369,6 @@ export {
     WorkoutGraph,
     intervalsToGraph,
     courseToGraph,
-    renderInfo,
+    renderInfoFunc as renderInfo,
 };
 

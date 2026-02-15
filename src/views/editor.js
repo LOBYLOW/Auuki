@@ -381,6 +381,7 @@ function Editor() {
         workout.intervals = Object.assign(workout.intervals, intervals);
 
         console.log(workout);
+        return workout;
     }
     function format(args = {}) {
         return toZwo(workout);
@@ -681,7 +682,21 @@ class WorkoutEditor extends HTMLElement {
         this.validate(this.download.bind(this));
     }
     save() {
-        this.editor.save();
+        const workout = this.editor.save();
+        
+        // Ensure ID and metadata
+        if(!workout.id) workout.id = uuid();
+        workout.created = Date.now();
+        workout.isSystem = false; // User created
+        
+        try {
+            console.log("Saving workout from Editor:", workout);
+            xf.dispatch('ui:workout:save', workout);
+            alert(`Workout "${workout.meta.name}" saved successfully!`);
+        } catch (e) {
+            console.error("Failed to save workout from Editor", e);
+            alert("Failed to save workout: " + e.message);
+        }
     }
     download() {
         this.editor.save();

@@ -10,6 +10,7 @@ import { uuid } from '../storage/uuid.js';
 
 import API from './api.js';
 import { workouts as workoutsFile }  from '../workouts/workouts.js';
+import { customWorkouts } from '../workouts/custom-workouts.js';
 import { zwo } from '../workouts/zwo.js';
 import { fileHandler } from '../file.js';
 import { Model as Cycling } from '../physics.js';
@@ -772,7 +773,29 @@ class Workouts extends Model {
     }
     defaultValue() {
         const self = this;
-        return workoutsFile.map((w) => Object.assign(self.workoutModel.parse(w), {id: uuid()}));
+        const result = [];
+        
+        // System workouts
+        workoutsFile.forEach(w => {
+            const parsed = self.workoutModel.parse(w);
+            result.push(Object.assign(parsed, {
+                id: uuid(), 
+                isSystem: true,
+                created: Date.now()
+            }));
+        });
+
+        // Custom built-in workouts
+        customWorkouts.forEach(w => {
+            const parsed = self.workoutModel.parse(w);
+             result.push(Object.assign(parsed, {
+                id: uuid(), 
+                isSystem: true,
+                created: Date.now()
+            }));
+        });
+
+        return result;
     }
     defaultIsValid(value) {
         const self = this;
@@ -780,13 +803,18 @@ class Workouts extends Model {
     }
     async restore(db) {
         const self = this;
-        const workouts = await idb.getAll(`${self.name}`) ?? [];
+        let workouts = await idb.getAll(`${self.name}`) ?? [];
 
         if(empty(workouts)) {
-            return self.default;
-        } else {
-            return self.default.concat(workouts);
+             console.log(':models :workouts :restore :empty "Populating default system workouts"');
+             workouts = self.defaultValue();
+             // Save them to IDB for this user
+             for (const w of workouts) {
+                 await idb.put(self.name, w);
+             }
         }
+        
+        return workouts.sort((a,b) => (b.created || 0) - (a.created || 0));
     }
     get(workouts, id) {
         for(let workout of workouts) {
@@ -799,6 +827,10 @@ class Workouts extends Model {
     }
     add(workouts, workout) {
         const self = this;
+        // Ensure new workouts have dates and IDs
+        if (!workout.id) workout.id = uuid();
+        if (!workout.created) workout.created = Date.now();
+        
         workouts.push(idb.setId(workout));
         self.save(workout);
         return workouts;
@@ -814,10 +846,14 @@ class Workouts extends Model {
             console.error(`:models :workouts :remove 'called without workout id!'`);
             return workouts;
         }
-        if(empty(workout)) {
-            console.error(`:models :workouts :remove 'called with empty id!'`);
-            return workouts;
+
+        const w = workouts.find(x => x.id === id);
+        if (w && w.isSystem) {
+            console.warn("Cannot delete system workout.");
+            // Ideally dispatch a UI toast here, but for now just prevent delete
+            return workouts; 
         }
+
         idb.remove(self.name, id);
         return workouts.filter((w) => w.id !== id);
     }

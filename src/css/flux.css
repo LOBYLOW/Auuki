@@ -131,6 +131,7 @@ input[type="number"] {
 .btn:hover {
     background-color: #777;
     cursor: pointer;
+    text-decoration: underline;
 }
 
 .flat-btn {
@@ -150,6 +151,12 @@ input[type="number"] {
     border-radius: 3px;
     webkit-transition: all 0.2s ease-in-out 0s;
     transition: all 0.2s ease-in-out 0s;
+}
+
+.request-btn:hover {
+    background-color: #777;
+    cursor: pointer;
+    text-decoration: underline;
 }
 
 .file-btn {
@@ -189,6 +196,10 @@ input, svg, a,
     color: #bbb;
     text-transform: uppercase;
     cursor: pointer;
+}
+
+.a:hover {
+    text-decoration: underline;
 }
 
 .line {
@@ -583,6 +594,7 @@ svg {
 .connection-switch:hover,
 .connection-icon-switch:hover {
     cursor: pointer;
+    text-decoration: underline;
 }
 
 .connection-switch--indicator {
@@ -863,6 +875,11 @@ svg {
 z-stack-item {
     display: none;
     cursor: pointer;
+    transition: opacity 0.2s ease-in-out;
+}
+
+z-stack-item:hover {
+    opacity: 0.8;
 }
 
 z-stack-item.active {
@@ -881,9 +898,11 @@ z-stack-item.active {
     position: relative;
     height: var(--graph-total-height);
     width: 100%;
+    min-height: 0;
+    overflow: hidden;
 
     display: grid;
-    grid-template-rows: minmax(1.4rem, auto) minmax(0, 100%);
+    grid-template-rows: minmax(1.4rem, auto) minmax(0, 1fr);
 
     border-top: 1px solid var(--border-color);
 }
@@ -994,14 +1013,12 @@ div.graph--bar-group {
 }
 
 .graph--bar {
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    /* position: relative; Removed as it affects SVG rendering */
+    /* display: flex; Removed */
+    /* width: 1px; Removed to allow SVG width attribute to work */
     margin: 0;
     padding: 0;
-    width: 1px;
-
+    shape-rendering: crispEdges;
 }
 
 .graph--info {
@@ -1047,7 +1064,7 @@ div.graph--bar-group {
     align-items: flex-end;
     height: var(--graph-height);
     height: 100%;
-    max-width: 100vw;
+    max-width: 100%;
     padding: 0;
 }
 
@@ -1165,6 +1182,10 @@ auto-start-counter {
     cursor: pointer;
 }
 
+.mode:hover {
+    text-decoration: underline;
+}
+
 .mode.active {
     font-weight: bold;
 }
@@ -1278,6 +1299,11 @@ auto-start-counter {
 }
 
 .control--btn--icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.control--btn--icon:hover {
+    transform: scale(1.1);
     width: var(--size--icon--global);
     height: var(--size--icon--global);
     fill: var(--foreground-color);
@@ -1500,12 +1526,219 @@ auto-start-counter {
     }
 }
 
-/* The old classes */
-.workout {
+
+/* Workout Selector Split Layout */
+workout-list {
     display: block;
-    position: relative;
-    border-bottom: 1px solid var(--border-color);
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
 }
+
+.workout-selector-container {
+    display: grid;
+    grid-template-columns: 20rem 1fr;
+    height: 100%;
+    /* border: 1px solid var(--border-color); */
+    background-color: var(--background-color);
+    margin: 0;
+    max-width: none;
+    width: 100%;
+}
+
+.workout-list-sidebar {
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color);
+    background-color: var(--background-color-2);
+}
+
+.workout-detail-panel {
+    padding: 2rem;
+    border-top: 1px solid var(--border-color);
+    overflow: hidden; /* Use hidden to allow flex child to scroll if needed, or just fit */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+.workout-detail--header {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+/* ... title ... */
+
+.workout-detail--graph-container {
+    width: 100%;
+    flex: 1; /* Grow to fill space */
+    min-height: 300px; /* Ensure a good minimum */
+    margin-bottom: 1rem;
+    background-color: var(--background-color-2);
+    border: 1px solid var(--border-color);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* SVG will fill this */
+}
+
+.workout-detail--description {
+    flex: 0 0 auto; /* Don't grow, just take space needed */
+    width: 100%;
+    font-size: 1.2em;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+    text-align: left;
+    max-height: 20%; /* Optional limit */
+    overflow-y: auto;
+}
+
+/* Sidebar Item Styling */
+workout-item {
+    display: block;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+    overflow: hidden;
+    height: 8rem; /* Fixed height for consistent look */
+}
+
+workout-item:hover {
+    background-color: var(--background-color-2);
+}
+
+workout-item.selected {
+    background-color: var(--background-color-3); /* Distinct selection color */
+    border-left: 4px solid var(--zone-green);
+}
+
+.workout-item--mini-summary {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 2; /* Ensure text is above graph */
+    height: 100%;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.workout-item--name {
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-bottom: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8); /* Readability against graph */
+}
+
+.workout-item--meta {
+    font-size: 1rem;
+    color: var(--gray);
+    display: flex;
+    justify-content: space-between;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.workout-item--mini-graph {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Behind text */
+    pointer-events: none; 
+    opacity: 0.4;
+    overflow: hidden;
+}
+
+/* Force the graph content to fit the mini container */
+.workout-item--mini-graph .workout-list--graph-cont {
+    width: 100%;
+    height: 100%;
+    transform-origin: bottom left;
+    transform: scale(0.33, 0.4); /* Squash the 600x200 graph into roughly 200x80 space */
+    /* Note: Ideally generate a simpler SVG, but CSS transform is a quick fix */
+    min-height: 0; 
+}
+
+/* Detail Panel Styling */
+.workout-detail--header {
+    width: 100%;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.workout-detail--header-info {
+    flex: 1;
+    text-align: left;
+}
+
+.workout-detail--title {
+    font-size: 2em;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.workout-detail--meta {
+    font-size: 1.2em;
+    color: var(--gray);
+}
+
+.workout-detail--graph-container {
+    width: 100%;
+    flex: 1; /* Take up all available vertical space */
+    min-height: 250px;
+    margin-bottom: 2rem;
+    background-color: var(--background-color-2);
+    border: 1px solid var(--border-color);
+    position: relative;
+    /* Reuse existing graph flex styles */
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: flex-end;
+}
+
+.workout-detail--description {
+    width: 100%;
+    font-size: 1.2em;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.workout-detail--load-btn {
+    padding: 0.8em 2em;
+    font-size: 1.1em;
+    font-weight: bold;
+    background-color: var(--zone-green);
+    color: var(--black);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-left: 2rem;
+    align-self: flex-start;
+}
+
+.workout-detail--load-btn:hover {
+    opacity: 0.9;
+}
+
+/* Hide old styles if they conflict */
+.workout--summary {
+    /* Keep for legacy if needed, or override */
+} 
 
 .workout--info {
     position: relative;
@@ -1555,7 +1788,7 @@ auto-start-counter {
 
 .workout--summary {
     display: grid;
-    grid-template-columns: 5fr 3fr 2fr 1fr 3rem;
+    grid-template-columns: 5fr 3fr 2fr 1fr;
 
     align-items: center;
     align-content: center;
@@ -1566,23 +1799,52 @@ auto-start-counter {
     cursor: pointer;
 }
 
-.workout--name {
-    font-size: var(--workout--name-font-size);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-wrap: nowrap;
-    line-height: 1.4em;
-}
+    .workout--status-indicator {
+        display: flex;
+        justify-content: flex-end;
+    }
 
-.workout--type {
-    font-size: var(--workout--type-font-size);
-    /* min-width: 100px; */
-    font-weight: bold;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-wrap: nowrap;
-    line-height: 1.4em;
-}
+    .status-active {
+        background-color: var(--zone-green);
+        color: var(--black);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 0.8em;
+    }
+
+    .workout.selected {
+        background-color: var(--background-color-2);
+        border-bottom: 1px solid var(--zone-green);
+    }
+
+    .workout--actions-panel {
+        display: flex;
+        justify-content: flex-end;
+        padding: 1em;
+        margin-top: 1em;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .workout--load-btn {
+        padding: 0.8em 2em;
+        font-weight: bold;
+        background-color: var(--zone-blue);
+        color: var(--white);
+        border: none;
+    }
+    
+    .workout--load-btn:hover {
+        background-color: var(--blue-opacity-05);
+    }
+
+    .workout--name {
+        font-weight: bold;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-wrap: nowrap;
+        line-height: 1.4em;
+    }
 
 .workout--duration {
     font-size: var(--workout--duration-font-size);
@@ -1716,6 +1978,11 @@ auto-start-counter {
     line-height: 5em;
     text-align: center;
     letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.library--switch--heading:hover {
+    text-decoration: underline;
 }
 
 .library--switch .library--switch--heading {
@@ -1878,11 +2145,16 @@ navigation-action {
     margin: 1em 2em;
     cursor: pointer;
     fill: var(--foreground-color);
+    transition: transform 0.2s ease-in-out;
+}
+
+.editor--icon:hover {
+    transform: scale(1.1);
 }
 
 .editor--save {
-    fill: var(--foreground-color-inactive);
-    cursor: not-allowed;
+    /* fill: var(--foreground-color-inactive); */
+    /* cursor: not-allowed; */
 }
 
 .editor--radio {
@@ -2004,6 +2276,10 @@ navigation-action {
     letter-spacing: 1px;
     border-radius: 50%;
     cursor: pointer;
+}
+
+.settings-switch-bnt:hover {
+    text-decoration: underline;
 }
 
 .row-border {
@@ -2312,6 +2588,10 @@ battery-level {
     border-radius: 3px;
     cursor: pointer;
 }
+
+.device-request--controls button:hover {
+    text-decoration: underline;
+}
 .device-request--cancel {
 }
 .device-request--pair {
@@ -2435,6 +2715,10 @@ battery-level {
         line-height: 1.4em;
         text-decoration: underline;
         cursor: pointer;
+        transition: opacity 0.2s ease-in-out;
+    }
+    .tab--button:hover {
+        opacity: 0.8;
     }
     .form--submit--section {
         display: flex;
@@ -2657,6 +2941,11 @@ activity-item {
         font-size: 1.4em;
         place-self: center;
         cursor: pointer;
+        transition: opacity 0.2s ease-in-out;
+    }
+
+    .activity--remove:hover {
+        opacity: 0.8;
     }
 }
 
@@ -2718,6 +3007,10 @@ activity-item {
     cursor: pointer;
     text-align: right;
 }
+
+.activity--upload:hover {
+    text-decoration: underline;
+}
 .activity--upload.success {
     color: var(--zone-green);
 }
@@ -2752,6 +3045,10 @@ dialog {
         border: none;
         text-transform: uppercase;
         cursor: pointer;
+    }
+
+    button:hover {
+        text-decoration: underline;
     }
 }
 
@@ -2793,6 +3090,10 @@ dialog {
     text-align: right;
     text-transform: uppercase;
     cursor: pointer;
+}
+
+.app-connection--button:hover {
+    text-decoration: underline;
 }
 
 /* About */

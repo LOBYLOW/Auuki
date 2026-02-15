@@ -1274,9 +1274,17 @@ class NavigationStack extends HTMLElement {
                 $link: document.querySelector(`#view--workouts`),
 
                 children: {
-                    workouts: {
-                        $view: document.querySelector(`#view--workouts-workouts`),
-                        $link: document.querySelector(`#link--workouts-workouts`),
+                    planned: {
+                        $view: document.querySelector(`#view--workouts-planned`),
+                        $link: document.querySelector(`#link--workouts-planned`),
+                    },
+                    activities: {
+                        $view: document.querySelector(`#view--workouts-activities`),
+                        $link: document.querySelector(`#link--workouts-activities`),
+                    },
+                    library: {
+                        $view: document.querySelector(`#view--workouts-library`),
+                        $link: document.querySelector(`#link--workouts-library`),
                     },
                     editor: {
                         $view: document.querySelector(`#view--workouts-editor`),
@@ -1320,8 +1328,16 @@ class NavigationStack extends HTMLElement {
             return;
         }
 
-        if(action === 'workouts:workouts') {
-            this.switch('workouts', this.tabs.workouts.children);
+        if(action === 'workouts:planned') {
+            this.switch('planned', this.tabs.workouts.children);
+            return;
+        }
+        if(action === 'workouts:activities') {
+            this.switch('activities', this.tabs.workouts.children);
+            return;
+        }
+        if(action === 'workouts:library') {
+            this.switch('library', this.tabs.workouts.children);
             return;
         }
         if(action === 'workouts:editor') {
@@ -1339,14 +1355,12 @@ class NavigationStack extends HTMLElement {
         // if there is no target element this is not an error,
         // it means all content should be 'non-active'
         for(let prop in elements) {
-            if(!(target === prop)) {
-                elements[prop].$view.classList.remove('active');
-                elements[prop].$link.classList.remove('active');
-            }
+            elements[prop].$view?.classList.remove('active');
+            elements[prop].$link?.classList.remove('active');
         }
         if(target) {
-            elements[target].$view.classList.add('active');
-            elements[target].$link.classList.add('active');
+            elements[target].$view?.classList.add('active');
+            elements[target].$link?.classList.add('active');
         }
     }
 }
