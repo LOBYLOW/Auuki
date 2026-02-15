@@ -338,9 +338,12 @@ xf.reg('ui:workout:upload', async function(files, db) {
         const { result, name } = await models.workout.readFromFile(file);
         const workout = models.workout.parse(result, name);
         models.workouts.add(db.workouts, workout);
-        xf.dispatch('db:workouts', db);
+        xf.dispatch('db:workouts', db.workouts);
     }
-
+});
+xf.reg('ui:workout:save', (workout, db) => {
+    models.workouts.add(db.workouts, workout);
+    xf.dispatch('db:workouts', db.workouts);
 });
 xf.reg('watch:stopped', (_, db) => {
     try {

@@ -1,5 +1,7 @@
 import { xf, exists, empty, toFixed } from '../functions.js';
 import { models } from '../models/models.js';
+import { zwo } from '../workouts/zwo.js';
+import { uuid } from '../storage/uuid.js';
 
 class WorkoutCreator extends HTMLElement {
     constructor() {
@@ -17,9 +19,12 @@ class WorkoutCreator extends HTMLElement {
     connectedCallback() {
         this.render();
         this.querySelector('#add-step-btn').addEventListener('click', this.addStep.bind(this));
-        this.querySelector('#add-group-btn').addEventListener('click', this.addGroup.bind(this));
+        
+        // Group logic listeners are attached in render() due to dynamic nature or check there
+        
         this.querySelector('#generate-btn').addEventListener('click', this.generateWorkout.bind(this));
         this.querySelector('#download-btn').addEventListener('click', this.downloadZwo.bind(this));
+        this.querySelector('#save-btn').addEventListener('click', this.saveWorkout.bind(this));
         this.querySelector('#close-btn').addEventListener('click', () => this.style.display = 'none');
         
         // Listen for open event
@@ -133,6 +138,41 @@ class WorkoutCreator extends HTMLElement {
         URL.revokeObjectURL(url);
     }
 
+    saveWorkout() {
+        console.log("saveWorkout called");
+        const xml = this.generateWorkout();
+        if (!this.metadata.name) {
+            alert("Please provide a workout name.");
+            return;
+        }
+
+        try {
+            console.log("Parsing workout XML...");
+            
+            // Direct parsing using ZWO to avoid models dependency issues
+            let workout = zwo.readToInterval(xml);
+            
+            // Ensure ID and timestamps
+            workout = Object.assign(workout, {
+                id: uuid(),
+                created: Date.now(),
+                isSystem: false
+            });
+
+            console.log("Parsed workout:", workout);
+            
+            // Dispatch save event
+            console.log("Dispatching save event...");
+            xf.dispatch('ui:workout:save', workout);
+            
+            alert(`Workout "${this.metadata.name}" saved to library!`);
+            this.style.display = 'none';
+        } catch (e) {
+            console.error("Failed to save workout", e);
+            alert("Failed to save workout: " + e.message);
+        }
+    }
+
     render() {
         this.innerHTML = `
         <div class="workout-creator-mod">
@@ -179,6 +219,7 @@ class WorkoutCreator extends HTMLElement {
             <div class="output-section">
                 <button id="generate-btn" class="btn">Generate XML</button>
                 <button id="download-btn" class="btn">Download .zwo</button>
+                <button id="save-btn" class="btn" style="background: green;">Save to Library</button>
                 <textarea id="output-area" readonly></textarea>
             </div>
         </div>

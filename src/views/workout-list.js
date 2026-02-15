@@ -17,35 +17,74 @@ const options = `
             <use href="#icon--options">
         </svg>`;
 
-function workoutTemplate(workout) {
+
+function workoutListItemTemplate(workout, isSelected) {
     let duration = '';
     if(workout.meta.duration) {
         duration = `${Math.round(workout.meta.duration / 60)} min`;
     }
-    if(workout.meta.distance) {
-        duration = `${(workout.meta.distance / 1000).toFixed(2)} km`;
+    
+    return `
+    <workout-item 
+        class='workout-item ${isSelected ? 'selected' : ''}' 
+        id="${workout.id}"
+    >
+        <div class="workout-item--mini-summary">
+            <div class="workout-item--name">${workout.meta.name}</div>
+            <div class="workout-item--meta">
+                <span>${workout.meta.category || 'General'}</span>
+                <span>${duration}</span>
+            </div>
+        </div>
+        <!-- Mini Graph Container (scaled down via CSS) -->
+        <div class="workout-item--mini-graph">
+             <div class="workout-list--graph-cont" style="width: 300%; height: 250%; align-items: flex-end; justify-content: flex-start; transform-origin: bottom left; transform: scale(0.33, 0.4);">${workout.graph}</div>
+        </div>
+    </workout-item>`;
+}
+
+function workoutDetailTemplate(workout) {
+    if (!workout || !workout.meta) {
+        return `<div class="workout-detail-panel">
+            <div style="margin-top: 50%; color: var(--gray);">Select a workout from the list to view details</div>
+        </div>`;
     }
-    return `<workout-item class='workout cf' id="${workout.id}" metric="ftp">
-                <div class="workout--info">
-                    <div class="workout--short-info">
-                        <div class="workout--summary">
-                            <div class="workout--name">${workout.meta.name}</div>
-                            <div class="workout--type">${workout.meta.category}</div>
-                            <div class="workout--duration">${duration}</div>
-                            <div class="workout--select" id="btn${workout.id}">${workout.selected ? radioOn : radioOff}
-                            </div>
-                            <div class="workout--options">${options}</div>
-                        </div>
-                    </div>
-                    <div class="workout--full-info">
-                        <div class="workout-list--graph-cont">${workout.graph}</div>
-                        <div class="workout--description">${workout.meta.description}</div>
-                    </div>
+
+    let duration = '';
+    let distance = '';
+    if(workout.meta.duration) {
+        duration = `${Math.round(workout.meta.duration / 60)} min`;
+    }
+    if(workout.meta.distance) {
+        distance = `${(workout.meta.distance / 1000).toFixed(2)} km`;
+    }
+
+    return `
+    <div class="workout-detail-panel">
+        <div class="workout-detail--header">
+            <div class="workout-detail--header-info">
+                <div class="workout-detail--title">${workout.meta.name}</div>
+                <div class="workout-detail--meta">
+                    ${workout.meta.category ? workout.meta.category + ' • ' : ''} 
+                    ${duration} 
+                    ${distance ? ' • ' + distance : ''}
                 </div>
-                <div class="workout--actions">
-                    <span class="workout--remove">Delete</span>
-                </div>
-            </workout-item>`;
+            </div>
+            <button class="workout-detail--load-btn" type="button" data-id="${workout.id}">
+                LOAD WORKOUT
+            </button>
+        </div>
+        
+        <div class="workout-detail--graph-container">
+            <div class="workout-list--graph-cont" style="height: 100%; width: 100%;">
+                ${workout.graph}
+            </div>
+        </div>
+        
+        <div class="workout-detail--description">
+            ${workout.meta.description || 'No description available.'}
+        </div>
+    </div>`;
 }
 
 class WorkoutList extends HTMLElement {
@@ -54,6 +93,7 @@ class WorkoutList extends HTMLElement {
         this.state = [];
         this.ftp = 0;
         this.items = [];
+        this.selectedId = null; 
         this.postInit();
         this.workout = {};
     }
@@ -64,18 +104,33 @@ class WorkoutList extends HTMLElement {
         this.signal = { signal: self.abortController.signal };
 
         xf.sub(`db:workouts`, this.onWorkouts.bind(this), this.signal);
-        xf.sub('db:workout',  this.onWorkout.bind(this), this.signal); // ?
+        xf.sub('db:workout',  this.onWorkout.bind(this), this.signal);
         xf.sub(`db:ftp`,      this.onFTP.bind(this), this.signal);
+        
+        // Listen for item selection events
+        this.addEventListener('workout-item-click', this.onItemClick.bind(this), this.signal);
+        
+        // Listen for Load button click in the detail panel (bubbled up)
+        this.addEventListener('pointerup', this.onLoadClick.bind(this), this.signal);
     }
+
     disconnectedCallback() {
         this.abortController.abort();
     }
+    
     getWidth() {
         return window.innerWidth;
     }
+
     onWorkout(value) {
         this.workout = value;
+        // Optionally update selectedId if valid
+        if(value && value.id) {
+             this.selectedId = value.id;
+             this.render();
+        }
     }
+
     onFTP(value) {
         if(!equals(value, this.ftp)) {
             this.ftp = value;
@@ -84,216 +139,105 @@ class WorkoutList extends HTMLElement {
             }
         }
     }
+
     onWorkouts(value) {
         this.state = value;
+        // Default select first one if nothing selected
+        if (!this.selectedId && this.state.length > 0) {
+            this.selectedId = this.state[0].id;
+        }
         this.render();
     }
+
+    onItemClick(e) {
+        const newId = e.detail.id;
+        if (this.selectedId !== newId) {
+            this.selectedId = newId;
+            this.render(); 
+        }
+    }
+    
+    onLoadClick(e) {
+        // Check if the click came from the load button
+        if (e.target.classList.contains('workout-detail--load-btn')) {
+            const id = e.target.getAttribute('data-id');
+            if (id) {
+                xf.dispatch('ui:workout:select', id);
+                xf.dispatch('ui:page-set', 'home');
+            }
+        }
+    }
+
     getViewPort() {
         const self = this;
-
-        const $el = document.querySelector('#workouts-page');
-        const fontSize = parseInt(window.getComputedStyle($el).getPropertyValue('font-size'));
-        const em = 8;
-
-        const width = self.getWidth();
-        const height = fontSize * em;
-        const aspectRatio = width / height;
-
-
+        // Simple viewport calc for generating graph
+        const width = 600; // Fixed width assumption for graph generation logic roughly
+        const height = 200;
         return {
             height,
             width,
-            aspectRatio,
+            aspectRatio: width / height,
         };
     }
-    stateToHtml(state, ftp, selectedWorkout) {
-        const self = this;
+
+    render() {
         const viewPort = this.getViewPort();
-
-        return state.reduce((acc, workout, i) => {
+        const selectedWorkout = this.state.find(w => w.id === this.selectedId);
+        
+        // Prepare list HTML
+        const listHtml = this.state.reduce((acc, workout) => {
             let graph = '';
-
+            // We generate the graph string here. Ideally we'd optimize this 
+            // to not regenerate every render if data hasn't changed.
             if(exists(workout.intervals)) {
-                graph = intervalsToGraph(workout, ftp, viewPort);
+                graph = intervalsToGraph(workout, this.ftp, viewPort);
             } else {
                 graph = courseToGraph(workout, viewPort);
             }
-
-            const selected = equals(workout.id, selectedWorkout.id);
-            workout = Object.assign(workout, {graph: graph, selected: selected});
-            return acc + workoutTemplate(workout);
+            // Attach graph to object for temp use
+            workout = Object.assign(workout, {graph: graph});
+            
+            const isSelected = (workout.id === this.selectedId);
+            return acc + workoutListItemTemplate(workout, isSelected);
         }, '');
-    }
-    render() {
-        this.innerHTML = this.stateToHtml(this.state, this.ftp, this.workout);
+
+        // Prepare Detail HTML
+        let detailHtml = '';
+        if (selectedWorkout) {
+             // Re-use graph generation or use a larger viewport version for detail?
+             // For simplicity, reusing the same graph string but it will expand to fill container
+             detailHtml = workoutDetailTemplate(selectedWorkout);
+        } else {
+             detailHtml = '<div class="workout-detail-panel">Select a workout</div>';
+        }
+
+        this.innerHTML = `
+            <div class="workout-selector-container">
+                <div class="workout-list-sidebar">
+                    ${listHtml}
+                </div>
+                ${detailHtml}
+            </div>
+        `;
     }
 }
-
-
 
 class WorkoutListItem extends HTMLElement {
     constructor() {
         super();
-        this.state = '';
-        this.isExpanded = false;
-        this.isSelected = false;
-        this.optionsActive = false;
     }
     connectedCallback() {
-        const self = this;
-        this.infoCont = this.querySelector('.workout--info');
-        this.summary = this.querySelector('.workout--summary');
-        this.description = this.querySelector('.workout--full-info');
-        this.selectBtn = this.querySelector('.workout--select');
-        this.optionsBtn = this.querySelector('.workout--options');
-        this.removeBtn = this.querySelector('.workout--remove');
-        this.indicator = this.selectBtn;
-        this.id = this.getAttribute('id');
-
-        this.abortController = new AbortController();
-        this.signal = { signal: self.abortController.signal };
-
-        this.debounced = {
-            onWindowResize: debounce(
-                self.onWindowResize.bind(this), 300, {trailing: true, leading: false},
-            ),
-        };
-
-        this.dom = {};
-        this.dom.info = this.querySelector('.graph--info--cont');
-        this.dom.cont = this.querySelector('.workout-list--graph-cont');
-        this.viewPort = this.getViewPort();
-
-        xf.sub('db:workout', this.onWorkout.bind(this), this.signal);
-        this.summary.addEventListener('pointerup', this.toggleExpand.bind(this), this.signal);
-        this.optionsBtn.addEventListener('pointerup', this.toggleOptions.bind(this), this.signal);
-        this.selectBtn.addEventListener('pointerup', this.onRadio.bind(this), this.signal);
-
-        this.removeBtn.addEventListener('pointerup', this.onRemove.bind(this), this.signal);
-
-        this.addEventListener('mouseover', this.onHover.bind(this), this.signal);
-        this.addEventListener('mouseout', this.onMouseOut.bind(this), this.signal);
-        window.addEventListener('resize', this.debounced.onWindowResize.bind(this), this.signal);
-
+        this.addEventListener('pointerup', this.onClick.bind(this));
     }
-    disconnectedCallback() {
-        this.abortController.abort();
-    }
-    toggleExpand(e) {
-        if(e.target.classList.contains('workout--options')) {
-            return;
-        }
-        if(this.isExpanded) {
-            this.collapse();
-        } else {
-            this.expand();
-        }
-    }
-    expand() {
-        this.description.style.display = 'block';
-        this.isExpanded = true;
-    }
-    collapse() {
-        this.description.style.display = 'none';
-        this.isExpanded = false;
-    }
-    toggleSelect(id) {
-        if(equals(this.id, id)) {
-            if(!this.isSelected) {
-                this.select();
-                this.expand();
-            }
-        } else {
-            this.diselect();
-        }
-    }
-    select() {
-        this.indicator.innerHTML = radioOn;
-        this.isSelected = true;
-    }
-    diselect() {
-        this.indicator.innerHTML = radioOff;
-        this.isSelected = false;
-    }
-    toggleOptions() {
-        if(this.optionsActive) {
-            this.hideOptions();
-        } else {
-            this.showOptions();
-        }
-    }
-    showOptions() {
-        this.infoCont.classList.remove('options-hide');
-        this.infoCont.classList.add('options-show');
-        this.optionsActive = true;
-    }
-    hideOptions() {
-        this.infoCont.classList.remove('options-show');
-        this.infoCont.classList.add('options-hide');
-        this.optionsActive = false;
-    }
-    onWorkout(workout) {
-        this.workout = workout;
-        this.toggleSelect(workout.id);
-    }
-    onRadio(e) {
-        e.stopPropagation();
-        xf.dispatch('ui:workout:select', this.id);
-    }
-    onRemove(e) {
-        console.log(`:ui :workout :remove :id '${this.id}'`);
-        xf.dispatch('ui:workout:remove', this.id);
-    }
-    onUpdate(value) {
-        if(!equals(value, this.state)) {
-            this.state = value;
-            this.render();
-        }
-    }
-    onHover(e) {
-        const self = this;
-        const target = this.querySelector('.graph--bar:hover');
-        if(exists(target)) {
-            const power        = target.getAttribute('power');
-            const cadence      = target.getAttribute('cadence');
-            const slope        = target.getAttribute('slope');
-            const duration     = target.getAttribute('duration');
-            const distance     = target.getAttribute('distance');
-            const intervalRect = target.getBoundingClientRect();
-            this.viewPort      = this.getViewPort(); // move to more sensible event
-
-            this.renderInfo({
-                power,
-                cadence,
-                slope,
-                duration,
-                distance,
-                intervalRect,
-                contRect: self.viewPort,
-                dom: self.dom,
-            });
-        }
-    }
-    onMouseOut(e) {
-        this.dom.info.style.display = 'none';
-    }
-    getViewPort() {
-        const rect = this.dom.cont.getBoundingClientRect();
-        return {
-            width: rect.width,
-            height: rect.height,
-            left: rect.left,
-            aspectRatio: rect.width / rect.height,
-        };
-    }
-    onWindowResize(e) {
-        this.viewPort = this.getViewPort();
-    }
-    render() {}
-    renderInfo(args = {}) {
-        renderInfo(args);
+    onClick(e) {
+        // Dispatch custom event to parent
+        this.dispatchEvent(new CustomEvent('workout-item-click', { 
+            detail: { id: this.id },
+            bubbles: true 
+        }));
     }
 }
+
 
 customElements.define('workout-list', WorkoutList);
 customElements.define('workout-item', WorkoutListItem);
@@ -302,6 +246,7 @@ export {
     radioOff,
     radioOn,
     options,
-    workoutTemplate,
+    workoutListItemTemplate,
+    workoutDetailTemplate
 };
 

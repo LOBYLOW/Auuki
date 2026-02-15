@@ -16,7 +16,9 @@
         <link rel="preconnect" href="https://fonts.gstatic.com">
         <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
         <link href="css/flux.css" rel="stylesheet"/>
+        <link href="css/layout-additions.css" rel="stylesheet"/>
         <link href="css/graph-additions.css" rel="stylesheet"/>
+        <link href="css/chart.css" rel="stylesheet"/>
         <link rel="manifest" href="./manifest.webmanifest">
     </head>
 
@@ -382,31 +384,49 @@
                 </div> <!-- end home-page-wrapper -->
             </div> <!-- end page-home -->
 
-            <div id="workouts-page" class="page" page="workouts">
-                <div class="library--switch--group">
+            <div id="workouts-page" class="page workouts-layout" page="workouts">
+                <aside class="workouts-sidebar">
+                    <h2 class="sidebar-heading">Workouts</h2>
                     <navigation-action
-                        id="link--workouts-workouts"
-                        class="library--switch--heading active"
-                        action="workouts:workouts"
+                        id="link--workouts-planned"
+                        class="sidebar-item"
+                        action="workouts:planned"
                         topic=":nav"
-                    >Workouts
+                    >Planned
                     </navigation-action>
                     <navigation-action
+                        id="link--workouts-activities"
+                        class="sidebar-item"
+                        action="workouts:activities"
+                        topic=":nav"
+                    >Activities
+                    </navigation-action>
+                    <navigation-action
+                        id="link--workouts-library"
+                        class="sidebar-item active"
+                        action="workouts:library"
+                        topic=":nav"
+                    >Library
+                    </navigation-action>
+                    <div class="sidebar-divider"></div>
+                    <navigation-action
                         id="link--workouts-editor"
-                        class="library--switch--heading"
+                        class="sidebar-item"
                         action="workouts:editor"
                         topic=":nav"
                     >Editor
                     </navigation-action>
                     <navigation-action
                         id="link--workouts-report"
-                        class="library--switch--heading"
+                        class="sidebar-item"
                         action="workouts:report"
                         topic=":nav"
-                    >Ride report
+                    >Ride Report
                     </navigation-action>
-                </div>
-                <workout-editor id="view--workouts-editor" class="sub-tab">
+                </aside>
+                
+                <main class="workouts-content">
+                    <workout-editor id="view--workouts-editor" class="sub-tab">
                     <div class="editor-cont">
                         <form action="">
                             <div class="editor--meta">
@@ -543,8 +563,9 @@
                     </laps-list>
                 </div> <!-- end ride-report -->
 
-                <!-- workout-list -->
-                <div id="view--workouts-workouts" class="workout-list sub-tab active">
+
+                <!-- Planned Section -->
+                <div id="view--workouts-planned" class="sub-tab">
                     <div class="list--sub-section">
                         <div class="list--row--outer">
                             <div class="list--row--inner list--heading--cont control">
@@ -559,21 +580,16 @@
                                         </svg>
                                         <div class="connection-icon-switch--indicator none intervals"></div>
                                     </view-action>
-                                    <!-- <view-action
-                                         class="activity--action"
-                                         action="trainingPeaks::wod"
-                                         topic="planned">
-                                         <div class="tp-logo--icon">TP</div>
-                                         <div class="connection-icon-switch--indicator none tp"></div>
-                                         </view-action> -->
-                                </div> <!-- end planned--actions -->
-                            </div> <!-- end list--heading--cont -->
+                                </div> 
+                            </div> 
                         </div>
                         <planned-list class="workouts--list planned--list">
                         </planned-list>
-                    </div> <!-- list--sub-section -->
+                    </div>
+                </div>
 
-                    <!-- activites -->
+                <!-- Activities Section -->
+                <div id="view--workouts-activities" class="sub-tab">
                     <div class="list--sub-section">
                         <div class="list--row--outer">
                             <div class="list--row--inner list--heading--cont">
@@ -582,8 +598,11 @@
                         </div>
                         <activity-list class="activity--list">
                         </activity-list>
-                    </div> <!-- end activities -->
+                    </div> 
+                </div>
 
+                <!-- Library Section -->
+                <div id="view--workouts-library" class="sub-tab active">
                     <div class="list--sub-section">
                         <div class="list--row--outer">
                             <div class="list--row--inner list--heading--cont">
@@ -593,36 +612,38 @@
                         <div class="buildin-workouts">
                             <workout-list id="workout-list" class="workout-list list" prop="workouts" metric="ftp">
                             </workout-list>
-                        </div> <!-- end list--heading--cont -->
-                    </div>  <!-- list--sub-section -->
+                        </div> 
+                    </div>  
 
-                    <div class="workout-creator-section" style="margin-top: 2em; padding-top: 2em; border-top: 1px solid var(--border-color);">
-                        <h2 class="page--heading">Create Custom Workout:</h2>
-                        <button id="open-creator-btn" class="btn" style="padding: 10px 20px; font-size: 1.2em; width: 100%;">Open Workout Builder</button>
-                    </div>
+                    <div class="workout-creator-section">
+                        <div style="display: flex; gap: 2rem; width: 100%; justify-content: space-around;">
+                            <div style="flex: 1;">
+                                <h2 class="page--heading" style="font-size: 1em; margin-bottom: 0.5em;">Create Custom Workout:</h2>
+                                <button id="open-creator-btn" class="btn" style="padding: 0.5em; font-size: 1em; width: 100%;">Open Workout Builder</button>
+                            </div>
 
-                    <div class="workout-loader">
-                        <h2 class="page--heading">Load workout:</h2>
-                        <div class="file-btn">
-                            <input is="workout-upload"
-                                   id="workout-file"
-                                   class="file-btn-native"
-                                   name="workout-file"
-                                   type="file"
-                                   accept=".zwo,.fit"
-                                   multiple
-                                   value="" />
-
+                            <div class="workout-loader" style="flex: 1;">
+                                <h2 class="page--heading" style="font-size: 1em; margin-bottom: 0.5em;">Load workout:</h2>
+                                <div class="file-btn" style="height: 2.5em;">
+                                    <input is="workout-upload"
+                                        id="workout-file"
+                                        class="file-btn-native"
+                                        name="workout-file"
+                                        type="file"
+                                        accept=".zwo,.fit"
+                                        multiple
+                                        value="" />
+                                    <!-- <div class="file-btn-custom">Choose File</div> -->
+                                </div>
+                                <div class="workout-loader--note" style="font-size: 0.8em; margin-top: 0.5em;">
+                                    <span class="p">Supported: .zwo, .fit (Course).</span>
+                                </div>
+                            </div>
                         </div>
-
-                        <div class="workout-loader--note">
-                            <p class="p">You can load a .zwo workout or a .fit Course file.</p>
-                            <p>NOTE: .fit workouts and gpx files are currently NOT supported.</p>
-                        </div>
                     </div>
-                    <br/><br/><br/>
-                </div> <!-- workout-list -->
-            </div>
+                </div>
+            </main> <!-- end workouts-content -->
+		</div> <!-- end workouts-page grid -->
 
             <div id="settings-page" class="page" page="settings">
 
@@ -1653,8 +1674,9 @@
                              18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
                 <circle class="circle" cx="12" cy="12" r="5"/>
             </symbol>
-            <symbol id="icon--options" class="workout--options-btn control--btn--icon" viewBox="0 -960 960 960">
-                <path d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/>
+            <symbol id="icon--options" class="workout--options-btn control--btn--icon" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0V0z" fill="none"/>
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
             </symbol>
 
 
