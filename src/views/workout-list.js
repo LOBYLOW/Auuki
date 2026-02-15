@@ -159,7 +159,7 @@ class WorkoutList extends HTMLElement {
     }
 
     onWorkouts(value) {
-        this.state = value;
+        this.state = Array.isArray(value) ? value : [];
         // Default select first one if nothing selected
         if (!this.selectedId && this.state.length > 0) {
             this.selectedId = this.state[0].id;
@@ -202,12 +202,22 @@ class WorkoutList extends HTMLElement {
         const viewPort = this.getViewPort();
         const self = this;
         
+        // Safety check
+        if (!Array.isArray(this.state)) {
+            this.state = [];
+        }
+        
         // Prepare list HTML
         const listItemsCtx = this.state.map(workout => {
             let graph = '';
             let axis = null;
             
-            if(workout.intervals) {
+            // Ensure workout has required structure
+            if (!workout || !workout.meta) {
+                return { id: workout?.id || 'unknown', meta: { name: 'Unknown' }, graph: '', axisData: null };
+            }
+            
+            if(workout.intervals && Array.isArray(workout.intervals)) {
                 // Generate graph once
                 const result = intervalsToGraph(workout, this.ftp, viewPort);
                 if (typeof result === 'object' && result.svg) {

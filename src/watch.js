@@ -380,6 +380,7 @@ class Watch {
         const intervalDuration = this.intervalsToDuration(intervals, intervalIndex);
         const stepDuration     = this.intervalsToStepDuration(intervals, intervalIndex, stepIndex);
         this.dispatchInterval(intervalDuration, intervalIndex);
+        this.dispatchCoachingText(intervals, intervalIndex);
     }
     nextDurationStep(intervals, intervalIndex, stepIndex) {
         const stepDuration = this.intervalsToStepDuration(intervals, intervalIndex, stepIndex);
@@ -398,6 +399,11 @@ class Watch {
         xf.dispatch('watch:intervalIndex',    intervalIndex);
         xf.dispatch('watch:lap');
     }
+    dispatchCoachingText(intervals, intervalIndex) {
+        const interval = intervals?.[intervalIndex];
+        const text = interval?.text || '';
+        xf.dispatch('watch:coachingText', text);
+    }
     dispatchStep(stepDuration, stepIndex) {
         xf.dispatch('watch:stepDuration', stepDuration);
         xf.dispatch('watch:stepTime',     stepDuration);
@@ -412,6 +418,7 @@ xf.reg('watch:stepDuration',   (time, db) => db.stepDuration     = time);
 xf.reg('watch:lapTime',        (time, db) => db.lapTime          = time);
 xf.reg('watch:stepTime',       (time, db) => db.stepTime         = time);
 xf.reg('watch:intervalIndex', (index, db) => db.intervalIndex    = index);
+xf.reg('watch:coachingText', (text, db) => db.coachingText       = text);
 xf.reg('watch:stepIndex',     (index, db) => {
     db.stepIndex         = index;
     const intervalIndex  = db.intervalIndex;

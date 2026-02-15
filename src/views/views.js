@@ -16,6 +16,7 @@ import './ant-device-scan.js';
 import './keyboard.js';
 import './intensity-control.js';
 import './remaining-time.js';
+import './coaching-text.js';
 import './profile-selector.js';
 import './user-badge.js';
 

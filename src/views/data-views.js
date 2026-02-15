@@ -1290,6 +1290,10 @@ class NavigationStack extends HTMLElement {
                         $view: document.querySelector(`#view--workouts-editor`),
                         $link: document.querySelector(`#link--workouts-editor`),
                     },
+                    builder: {
+                        $view: document.querySelector(`#view--workouts-builder`),
+                        $link: document.querySelector(`#link--workouts-builder`),
+                    },
                     report: {
                         $view: document.querySelector(`#view--workouts-report`),
                         $link: document.querySelector(`#link--workouts-report`),
@@ -1342,6 +1346,10 @@ class NavigationStack extends HTMLElement {
         }
         if(action === 'workouts:editor') {
             this.switch('editor', this.tabs.workouts.children);
+            return;
+        }
+        if(action === 'workouts:builder') {
+            this.switch('builder', this.tabs.workouts.children);
             return;
         }
         if(action === 'workouts:report') {

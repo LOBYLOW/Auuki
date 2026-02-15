@@ -38,6 +38,12 @@ function start() {
     // If we have users, we should probably show the selector.
     // Let's decide: ALWAYS show profile selector on startup.
     
+    // Remove any existing profile selector (e.g., from HMR)
+    const existing = document.querySelector('profile-selector');
+    if (existing) {
+        existing.remove();
+    }
+    
     // Inject Profile Selector
     const selector = document.createElement('profile-selector');
     document.body.appendChild(selector);

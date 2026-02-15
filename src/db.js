@@ -94,6 +94,7 @@ let db = {
     stepIndex: 0,
     intervalDuration: 0,
     stepDuration: 0,
+    coachingText: '',
     watchStatus: TimerStatus.stopped,
     workoutStatus: TimerStatus.stopped,
 
@@ -342,6 +343,10 @@ xf.reg('ui:workout:upload', async function(files, db) {
     }
 });
 xf.reg('ui:workout:save', (workout, db) => {
+    // Ensure workouts array exists
+    if (!Array.isArray(db.workouts)) {
+        db.workouts = [];
+    }
     models.workouts.add(db.workouts, workout);
     xf.dispatch('db:workouts', db.workouts);
 });
