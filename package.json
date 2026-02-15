@@ -10,7 +10,7 @@
     "source": "src/index.html",
     "scripts": {
         "test": "jest",
-        "start": "parcel",
+        "start": "parcel src/index.html --port 3000",
         "starttls": "parcel --cert ./dev_cert/cert.pem --key ./dev_cert/key.pem",
         "build": "parcel build"
     },

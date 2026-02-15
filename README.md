@@ -80,6 +80,9 @@ Support for ANT+ is experimental at the moment. It is being rewritten right now 
 The current development setup is using Suunto movestick mini, Garmin Fenix 5 watch broadcasting heart rate,
 Tacx Heart Rate monitor, Tacx Flux S trainer, and X240 laptop with Ubuntu 20.04.2 LTS, M1 Mac, and Samsung S9 Android phone.
 
+## Development
+For instructions on running the app locally and contributing, please see the [Development Guide](doc/development.md).
+
 ## Manual
 - [How to create a Profile and Connect Intervals.icu](https://forum.intervals.icu/t/auuki-com-intervals-icu-integration/87105)
 - [How-To: Using the connection settings](https://github.com/dvmarinoff/Auuki/discussions/91)
