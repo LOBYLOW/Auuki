@@ -49,9 +49,13 @@ This document serves as a semantic network of concepts to understand the domain 
 ## Concept Map
 
 ```text
+[User] --(selects)--> [ProfileSelector]
+[ProfileSelector] --(activates)--> [Session Context]
+[Session Context] --(loads)--> [User Preferences]
+
 [User] --(configures)--> [Profile]
 [Profile] --(determines)--> [Zones]
-[Profile] --(scales)--> [Workout]
+[Profile] --(scales)--> [Training Targets]
 
 [Trainer] --(reports)--> [Power/Speed]
 [Trainer] <--(accepts)-- [Target Power/Slope]

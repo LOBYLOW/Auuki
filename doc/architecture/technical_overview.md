@@ -39,6 +39,28 @@ The Application uses a **Reactive Event-Driven Architecture** built on top of a 
 *   **Test Runner**: Jest.
 *   **Transpiler**: Babel.
 
+## User Management & Persistence
+The application supports multiple user profiles on a single device, useful for shared training setups.
+
+### Components
+1.  **UserManager (`src/models/user.js`)**:
+    *   Singleton service responsible for CRUD operations on users.
+    *   Persists the list of users to `localStorage` under `app:users`.
+    *   Tracks the currently selected user and remembers the last active user (`app:last-user`).
+
+2.  **Profile Selector (`src/views/profile-selector.js`)**:
+    *   A full-screen Web Component overlay that forces the user to select or create a profile on startup.
+    *   Hides itself once a valid user is selected and dispatches the `app:start` event.
+
+3.  **User Badge (`src/views/user-badge.js`)**:
+    *   A persistent UI element in the header displaying the current user.
+    *   Allows switching users by clicking (which reloads the app to ensure clean state).
+
+### Storage Strategy
+*   **User Isolation**: Data stored in `localStorage` is prefixed with the user's unique ID (e.g., `u-12345:ftp`).
+*   **Scoped Access**: The `src/storage/local-storage.js` helper uses a `globalContext` function (set by `UserManager`) to automatically prepend the correct user ID to all storage keys.
+*   **Port Dependency**: Since `localStorage` is origin-bound, the development server must run on a fixed port (e.g., 3000) to ensure data persistence across restarts.
+
 ## Flow of Data
 1.  **Hardware Input**: A BLE device sends a notification (e.g., Power measurement).
 2.  **Driver Layer**: `src/ble/` decodes the data.

@@ -16,6 +16,8 @@ import './ant-device-scan.js';
 import './keyboard.js';
 import './intensity-control.js';
 import './remaining-time.js';
+import './profile-selector.js';
+import './user-badge.js';
 
 function start() {
     console.log('start views.');

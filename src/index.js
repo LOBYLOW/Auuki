@@ -6,6 +6,8 @@ import './ble/devices.js';
 import './watch.js';
 import './course.js';
 import './lock.js';
+import { userManager } from './models/user.js';
+import { setGlobalContext } from './storage/local-storage.js';
 
 function startServiceWorker() {
     if('serviceWorker' in navigator) {
@@ -28,8 +30,38 @@ function startServiceWorker() {
 function start() {
     console.log('start app.');
 
+    setGlobalContext(() => userManager.getStoragePrefix());
+
+    const users = userManager.getUsers();
+    
+    // If we have no users, we MUST show the profile selector (or auto-create one?)
+    // If we have users, we should probably show the selector.
+    // Let's decide: ALWAYS show profile selector on startup.
+    
+    // Inject Profile Selector
+    const selector = document.createElement('profile-selector');
+    document.body.appendChild(selector);
+    
+    // Check for test mode
+    /*
+    const urlParams = new URLSearchParams(window.location.search);
+    const isTestMode = urlParams.get('test') === 'true';
+
+    if (isTestMode) {
+        console.warn('RUNNING IN TEST MODE');
+        import('./views/simulation-panel.js').then(() => {
+            // Find the header to inject the panel after
+            const header = document.querySelector('.connections-header');
+            if (header) {
+                const panel = document.createElement('simulation-panel');
+                header.insertAdjacentElement('afterend', panel);
+            }
+        });
+    }
+    */
+
     // startServiceWorker(); // stable version only
-    xf.dispatch('app:start');
+    // xf.dispatch('app:start'); // REMOVED: Managed by profile-selector
 }
 
 function stop() {
