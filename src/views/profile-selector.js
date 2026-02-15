@@ -10,6 +10,8 @@ class ProfileSelector extends HTMLElement {
     }
 
     connectedCallback() {
+        // Always ensure the selector is visible when connected
+        this.style.display = 'flex';
         this.render();
         this.addEventListeners();
     }

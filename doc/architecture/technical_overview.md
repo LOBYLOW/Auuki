@@ -1,7 +1,15 @@
 # Technical Overview
 
 ## Architecture Pattern
-The Application uses a **Reactive Event-Driven Architecture** built on top of a custom lightweight framework. It functions as a Single Page Application (SPA).
+The Application uses a **Hybrid Reactive Architecture** combining:
+1. A custom **Reactive Event-Driven Architecture** (vanilla JS with Web Components)
+2. A modern **React/TypeScript Architecture** (for new feature development)
+
+It functions as a Single Page Application (SPA) that is progressively migrating to the React architecture.
+
+---
+
+## Legacy Architecture (Vanilla JS)
 
 ### Key Components
 
@@ -34,10 +42,91 @@ The Application uses a **Reactive Event-Driven Architecture** built on top of a 
     *   Stored generally in XML format (resembling ZWO).
     *   Parsed and executed by a timer/logic engine.
 
+---
+
+## Modern Architecture (React/TypeScript)
+
+### Overview
+New features are being developed using React 19, TypeScript, and Zustand for state management. This architecture coexists with the legacy system through an event bridge.
+
+### Workout Builder (`src/workout-builder/`)
+
+A fully-featured visual drag-and-drop workout editor built with React.
+
+#### Structure
+```
+src/workout-builder/
+├── WorkoutBuilder.tsx       # Main component
+├── store.ts                 # Zustand store with undo/redo (zundo)
+├── types.ts                 # TypeScript type definitions
+├── constants.ts             # Interval presets, zone configs
+├── utils.ts                 # Helper functions
+├── index.ts                 # Public exports
+├── components/
+│   ├── WorkoutTimeline.tsx  # SVG-based workout graph canvas
+│   ├── DraggableBlock.tsx   # Individual workout blocks
+│   ├── RepeatGroup.tsx      # Interval set containers
+│   ├── PropertyPanel.tsx    # Block property editor (sidebar)
+│   ├── MetricsPanel.tsx     # TSS, IF, duration, zone distribution
+│   └── Toolbar.tsx          # Add blocks, intervals, undo/redo
+└── hooks/
+    └── useKeyboardShortcuts.ts  # Keyboard navigation
+```
+
+#### Features
+- **Visual Block Editing**: Drag-and-drop blocks, resize via edges
+- **Ramp Creation**: Drag edges up/down to create warmup/cooldown ramps
+- **Property Panel**: Edit type, duration, power, cadence, coaching notes
+- **Zone Distribution**: Visual bar showing time in each training zone
+- **Interval Presets**: 10 structured interval templates (30/30, Tabata, etc.)
+- **Coaching Text**: Per-block coaching notes displayed during workout execution
+- **Undo/Redo**: Full history with Ctrl+Z / Ctrl+Shift+Z
+- **ZWO Export**: Export workouts in Zwift-compatible format
+
+#### State Management
+Uses Zustand with temporal middleware for undo/redo:
+```typescript
+interface WorkoutBuilderState {
+  workout: Workout;
+  selectedIds: string[];
+  ftp: number;
+  // Actions
+  addBlock: (type: BlockType) => void;
+  updateBlock: (id: string, updates: Partial<WorkoutBlock>) => void;
+  deleteSelected: () => void;
+  // ... more actions
+}
+```
+
+#### Integration Bridge (`src/workout-builder-mount.tsx`)
+Bridges React and vanilla JS via the `xf` event system:
+- **React → Vanilla**: Dispatches `workout:created`, `workout:load` events
+- **Vanilla → React**: Listens for `ui:openWorkoutBuilder` events
+- **Data Conversion**: Converts between React types and legacy interval format
+
+### Coaching Text System
+
+Coaching text flows through the system as follows:
+
+1. **Creation**: User enters notes in PropertyPanel textarea
+2. **Storage**: Saved as `text` field on `WorkoutBlock`
+3. **Conversion**: Mapped to interval `text` field via `convertSingleBlock()`
+4. **Runtime**: `watch.js` dispatches `watch:coachingText` on interval change
+5. **Display**: `<coaching-text>` web component shows overlay with 10s auto-hide
+6. **Export**: Written as `<textevent>` elements in ZWO format
+
 ### Build System
-*   **Bundler**: Parcel.
-*   **Test Runner**: Jest.
-*   **Transpiler**: Babel.
+*   **Bundler**: Parcel 2.x (handles both vanilla JS and React/TypeScript)
+*   **Test Runner**: Jest
+*   **Transpiler**: Babel (for JS), TypeScript (for .ts/.tsx)
+*   **React**: React 19 with automatic JSX transform
+*   **State Management**: Zustand with zundo (temporal undo/redo)
+
+### Type Safety
+The modern architecture uses TypeScript for compile-time type checking:
+- `src/workout-builder/types.ts` - Workout, WorkoutBlock, RepeatGroup interfaces
+- React components use typed props and state
+- Zustand store is fully typed
 
 ## User Management & Persistence
 The application supports multiple user profiles on a single device, useful for shared training setups.

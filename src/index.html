@@ -19,6 +19,7 @@
         <link href="css/layout-additions.css" rel="stylesheet"/>
         <link href="css/graph-additions.css" rel="stylesheet"/>
         <link href="css/chart.css" rel="stylesheet"/>
+        <link href="css/workout-builder.css" rel="stylesheet"/>
         <link rel="manifest" href="./manifest.webmanifest">
     </head>
 
@@ -396,6 +397,13 @@
                     >Editor
                     </navigation-action>
                     <navigation-action
+                        id="link--workouts-builder"
+                        class="sidebar-item"
+                        action="workouts:builder"
+                        topic=":nav"
+                    >Builder (React)
+                    </navigation-action>
+                    <navigation-action
                         id="link--workouts-report"
                         class="sidebar-item"
                         action="workouts:report"
@@ -490,6 +498,11 @@
                         </form>
                     </div> <!-- end editor--cont -->
                 </workout-editor>
+
+                <!-- React Workout Builder -->
+                <div id="view--workouts-builder" class="sub-tab" style="height: 100%; padding: 16px; background: var(--bg-color);">
+                    <div id="react-workout-builder" style="height: 100%; min-height: 600px;"></div>
+                </div>
 
                 <!-- ride-report -->
                 <div id="view--workouts-report" class="ride-report sub-tab">
@@ -1719,6 +1732,8 @@
             </symbol>
         </svg>
         <workout-creator style="display:none;"></workout-creator>
+        <coaching-text></coaching-text>
     </body>
     <script type="module" src="index.js"></script>
+    <script type="module" src="workout-builder-mount.tsx"></script>
 </html>
