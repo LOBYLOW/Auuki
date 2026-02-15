@@ -30,8 +30,8 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
     const totalDuration = computedDuration || workout.meta.duration || 1;
     
     // Calculate max power for Y-axis scaling
-    const currentFtp = Math.round(ftp * intensityFactor);
-    maxPower = Math.max(maxPower, currentFtp * 1.5);
+    const currentFtp = Math.round(ftp * intensityFactor) || 200;
+    maxPower = Math.max(maxPower, currentFtp * 1.5) || 300;
 
 
     // SVG ViewBox dimensions (normalized coordinate system)
@@ -135,22 +135,29 @@ function intervalsToGraph(workout, ftp, viewPort, intensity = 100) {
     // FTP Line
     const ftpY = yScale(currentFtp);
     // Use vector-effect on ftp line too
-    const ftpLine = `<line x1="${padding.left}" y1="${ftpY}" x2="${vbWidth - padding.right}" y2="${ftpY}" class="graph--ftp-line" stroke-dasharray="5,5" stroke="#fff" vector-effect="non-scaling-stroke" />`;
+    const ftpRefLine = `<line x1="${padding.left}" y1="${ftpY}" x2="${vbWidth - padding.right}" y2="${ftpY}" stroke-dasharray="5,5" stroke="#fff" vector-effect="non-scaling-stroke" style="opacity: 0.5;" />`;
 
     // Add containers for dynamic overlays
     const overlays = `
-        <polyline id="power-line" fill="none" stroke="yellow" stroke-width="2" points="" vector-effect="non-scaling-stroke" />
-        <line id="progress-line" stroke="#fff" stroke-width="2" display="none" vector-effect="non-scaling-stroke" />
+        <polyline id="power-line" fill="none" class="graph--power-line" stroke="yellow" stroke-width="2" points="" vector-effect="non-scaling-stroke" />
+        <line id="progress-line" x1="0" y1="${padding.top}" x2="0" y2="${vbHeight - padding.bottom}" stroke="#fff" stroke-width="2" style="display: none;" vector-effect="non-scaling-stroke" />
     `;
 
+    // Return object with SVG string and metadata
     return {
         svg: `<svg viewBox="0 0 ${vbWidth} ${vbHeight}" preserveAspectRatio="none" class="graph--svg" style="display: block; width: 100%; height: 100%;">
             ${yGrid}
             ${bars}
-            ${ftpLine}
+            ${ftpRefLine}
             ${overlays}
         </svg>`,
-        meta,
+        meta: {
+            totalDuration,
+            maxPower,
+            padding,
+            vbWidth,
+            vbHeight
+        },
         axis: { 
             x: xAxisData, 
             y: yAxisData, 
@@ -291,19 +298,23 @@ class WorkoutGraph extends HTMLElement {
     }
 
     onElapsed(t) {
-        if(!this.graphMeta || (this.workoutStatus !== 'running' && this.workoutStatus !== 'paused')) return;
+        if(!this.graphMeta) return; 
         
-        // Add point to history
-        // Only if we have a valid power reading
-        // Using currentPower which is updated by db:power subscription
-        if (exists(this.currentPower)) {
-            // Append explicit update call
-            this.updateOverlays(t, this.currentPower);
+        if (this.workoutStatus !== 'started' && this.workoutStatus !== 'running' && this.workoutStatus !== 'paused') return;
+        
+        // Use 1s average for smoothness, fallback to currentPower or 0
+        // This ensures the line draws even if 'db:power' hasn't fired just yet but simulation is running
+        const powerToDraw = models.power1s.state || this.currentPower || 0;
+        
+        // Start drawing if we have time elapsed
+        if (t > 0) {
+            this.updateOverlays(t, powerToDraw);
         }
     }
 
     updateOverlays(time, power) {
          if (!this.graphMeta) return;
+         // console.log('DEBUG: updateOverlays', time, power);
          const { totalDuration, maxPower, padding, vbWidth, vbHeight } = this.graphMeta;
          
          // Project Time (X)
@@ -315,29 +326,29 @@ class WorkoutGraph extends HTMLElement {
          // Project Power (Y)
          // Note: Y axis is inverted in SVG (0 is top)
          const availableHeight = vbHeight - padding.top - padding.bottom;
-         const clampedPower = Math.min(power, maxPower); // Clamp power so it doesn't go off chart
+         // const clampedPower = Math.min(power, maxPower); // Clamp power so it doesn't go off chart
+         const clampedPower = Math.min(power, maxPower);
          const y = vbHeight - padding.bottom - (clampedPower / maxPower) * availableHeight;
          
-         const svg = this.querySelector('svg');
-         if(!svg) return;
-         
+         // Find elements
+         // Cache these?
+         const progressLine = this.querySelector('#progress-line');
+         const powerLine = this.querySelector('#power-line');
+
          // Update Progress Line
-         let progressLine = svg.querySelector('#progress-line');
          if(progressLine) {
              progressLine.setAttribute('x1', x);
              progressLine.setAttribute('x2', x);
-             progressLine.setAttribute('y1', padding.top); 
-             progressLine.setAttribute('y2', vbHeight - padding.bottom);
              progressLine.style.display = 'block';
          }
          
          // Update Power Line
-         let powerLine = svg.querySelector('#power-line');
          if(powerLine) {
              const newPoint = `${x},${y}`;
-             const currentPoints = powerLine.getAttribute('points') || "";
+             let currentPoints = powerLine.getAttribute('points') || "";
+             // Optimization: Trim points if too long?
+             // For now just append
              const separator = currentPoints ? ' ' : '';
-             // Limit points string length if necessary, but SVG handles many points well.
              powerLine.setAttribute('points', currentPoints + separator + newPoint);
          }
     }

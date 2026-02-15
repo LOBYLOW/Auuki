@@ -1352,7 +1352,32 @@ class PropInterval {
         this.prop        = existance(args.prop, this.getDefaults().prop);
         this.effect      = existance(args.effect, this.getDefaults().effect);
         this.interval    = existance(args.interval, this.getDefaults().interval);
+        
+        // Listen for configuration changes
+        xf.sub('ui:configure', this.onConfigure.bind(this));
+        
         this.start();
+    }
+    onConfigure(config) {
+        if (config && config.speed) {
+            // Check based on interval duration or effect name
+            let baseParams = { interval: 1000 };
+            if (this.effect === 'power1s') baseParams = { interval: 1000 };
+            else if (this.effect === 'power3s') baseParams = { interval: 3000 };
+            else return;
+
+            const newInterval = baseParams.interval / config.speed;
+            
+            // Only update if it's different and reasonable (e.g., > 10ms ?)
+            if (this.interval !== newInterval) {
+                 this.updateInterval(newInterval);
+            }
+        }
+    }
+    updateInterval(newDuration) {
+        clearInterval(this.intervalId);
+        this.interval = newDuration;
+        this.intervalId = setInterval(this.onInterval.bind(this), this.interval);
     }
     getDefaults() {
         const self = this;

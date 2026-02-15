@@ -21,7 +21,7 @@ class TrainerMock {
             'one': 0.54, 'two': 0.75, 'three': 0.87,
             'four': 0.94, 'five': 1.05, 'six': 1.20,
         };
-        // this.init();
+        this.init();
     }
     init() {
         const self = this;
@@ -34,6 +34,7 @@ class TrainerMock {
         xf.sub('ui:watchStart', self.run.bind(self));
         xf.sub('ui:watchResume', self.run.bind(self));
         xf.sub('ui:watchPause', self.stop.bind(self));
+        xf.sub('ui:configure', self.onConfigure.bind(self));
 
         self.id = 'ble:controllable';
         self.name = 'Tacx Flux 46731';
@@ -57,12 +58,20 @@ class TrainerMock {
     }
     stop() {
         const self = this;
-        clearInterval(self.interval);
+        if(self.interval) clearInterval(self.interval);
+    }
+    onConfigure(config) {
+        if (config && config.speed) {
+            this.broadcastInterval = 250 / config.speed;
+            if (this.interval) {
+                this.stop();
+                this.run();
+            }
+        }
     }
     broadcast(handler) {
         // broadcast interval in ms
-        const interval = setInterval(handler, 250);
-        // const interval = setInterval(handler, 1000);
+        const interval = setInterval(handler, this.broadcastInterval || 250);
         return interval;
     }
     indoorBikeData() {
@@ -72,6 +81,7 @@ class TrainerMock {
         self.cadence = this.cadenceNext(self.cadence);
         self.speed = 20;
 
+        // Dispatch raw events to be picked up by db.js registrations
         xf.dispatch('power', self.power);
         xf.dispatch('heartRate', self.heartRate);
         xf.dispatch('cadence', self.cadence);
@@ -89,7 +99,7 @@ class TrainerMock {
         this.ftp = ftp;
     }
     powerNext(prev) {
-        return this.powerTarget;
+        return this.powerTarget + rand(-5, 5); 
     }
     cadenceNext(prev) {
         return prev + rand(-1, 1);

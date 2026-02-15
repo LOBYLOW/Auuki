@@ -43,23 +43,21 @@ function start() {
     document.body.appendChild(selector);
     
     // Check for test mode
-    /*
     const urlParams = new URLSearchParams(window.location.search);
-    const isTestMode = urlParams.get('test') === 'true';
+    const isTestMode = urlParams.has('test');
 
     if (isTestMode) {
         console.warn('RUNNING IN TEST MODE');
-        import('./views/simulation-panel.js').then(() => {
-            // Find the header to inject the panel after
-            const header = document.querySelector('.connections-header');
-            if (header) {
-                const panel = document.createElement('simulation-panel');
-                header.insertAdjacentElement('afterend', panel);
-            }
-        });
+        import('./simulation.js').then(() => {
+            console.log('Simulation active');
+            // Set speed x10
+            setTimeout(() => {
+                xf.dispatch('ui:configure', { speed: 10 });
+                xf.dispatch('ui:watchStart'); // Auto-start in test mode
+            }, 500);
+        }).catch(err => console.error('Failed to load simulation', err));
     }
-    */
-
+    
     // startServiceWorker(); // stable version only
     // xf.dispatch('app:start'); // REMOVED: Managed by profile-selector
 }

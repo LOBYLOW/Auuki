@@ -86,6 +86,7 @@ class Watch {
                 self.stop();
             }
         });
+        xf.sub('ui:configure', self.configure.bind(self));
     }
     isStarted()        { return this.state        === 'started'; };
     isPaused()         { return this.state        === 'paused'; };
@@ -97,6 +98,13 @@ class Watch {
     }
     status() {
         return this.state;
+    }
+    configure(config) {
+        if (config && config.speed) {
+            const _newInterval = 1000 / config.speed;
+            timer.postMessage({ type: 'config', interval: _newInterval });
+            console.log(`Setting speed to x${config.speed} (interval: ${_newInterval}ms)`);
+        }
     }
     onSources(value) {
         this.autoPause = value.autoPause ?? this.autoPause;
