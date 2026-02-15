@@ -24,30 +24,36 @@ function workoutListItemTemplate(workout, isSelected) {
         duration = `${Math.round(workout.meta.duration / 60)} min`;
     }
     
+    // We want a tiny representation. The graph in full scale (1000x400) is too detailed if we scale it.
+    // But since it's SVG, we can just render it small.
+    // The "transform: scale" trick is usually to make fonts readable, but we don't have text here.
+    // So we can just set width/height to 100% in the container.
+    // But maybe we want the aspect ratio to look squashed or stretched differently?
+    // Let's just fit it in the box. `preserveAspectRatio="none"` on the generating side handles stretching.
+    
     return `
-    <workout-item 
+    <div 
         class='workout-item ${isSelected ? 'selected' : ''}' 
         id="${workout.id}"
+        onclick="this.dispatchEvent(new CustomEvent('workout-item-click', { detail: { id: this.id }, bubbles: true }))"
     >
         <div class="workout-item--mini-summary">
-            <div class="workout-item--name">${workout.meta.name}</div>
+            <div class="workout-item--name" title="${workout.meta.name}">${workout.meta.name}</div>
             <div class="workout-item--meta">
                 <span>${workout.meta.category || 'General'}</span>
-                <span>${duration}</span>
+                <span> • ${duration}</span>
             </div>
         </div>
-        <!-- Mini Graph Container (scaled down via CSS) -->
         <div class="workout-item--mini-graph">
-             <div class="workout-list--graph-cont" style="width: 300%; height: 250%; align-items: flex-end; justify-content: flex-start; transform-origin: bottom left; transform: scale(0.33, 0.4);">${workout.graph}</div>
+             <!-- The graph SVG already has width=100%, height=100% -->
+             ${workout.graph}
         </div>
-    </workout-item>`;
+    </div>`;
 }
 
 function workoutDetailTemplate(workout) {
     if (!workout || !workout.meta) {
-        return `<div class="workout-detail-panel">
-            <div style="margin-top: 50%; color: var(--gray);">Select a workout from the list to view details</div>
-        </div>`;
+        return `<div class="workout-detail-panel" style="display:flex; align-items:center; justify-content:center; height:100%; color: #888;">Select a workout to view details</div>`;
     }
 
     let duration = '';
@@ -57,6 +63,17 @@ function workoutDetailTemplate(workout) {
     }
     if(workout.meta.distance) {
         distance = `${(workout.meta.distance / 1000).toFixed(2)} km`;
+    }
+
+    let axisHtml = '';
+    if (workout.axisData) {
+        const ad = workout.axisData;
+        const yLabels = ad.y.map(a => `<div class="graph--y-label" style="bottom: ${a.pos}%;">${a.val}</div>`).join('');
+        const xLabels = ad.x.map(a => `<div class="graph--x-label" style="left: ${a.pos}%;">${a.val}</div>`).join('');
+        // Ensure FTP exists before accessing
+        const ftpLabel = ad.ftp ? `<div class="graph--ftp-label" style="bottom: ${ad.ftp.pos}%; right: 5px;">${ad.ftp.val}</div>` : '';
+        
+        axisHtml = `<div class="graph--axis-layer">${yLabels}${xLabels}${ftpLabel}</div>`;
     }
 
     return `
@@ -75,9 +92,10 @@ function workoutDetailTemplate(workout) {
             </button>
         </div>
         
-        <div class="workout-detail--graph-container">
-            <div class="workout-list--graph-cont" style="height: 100%; width: 100%;">
+        <div class="workout-detail--graph-container"> <!-- Use relative positioning for overlays -->
+            <div class="workout-list--graph-cont" style="position: relative; height: 100%; width: 100%;">
                 ${workout.graph}
+                ${axisHtml}
             </div>
         </div>
         
@@ -182,37 +200,77 @@ class WorkoutList extends HTMLElement {
 
     render() {
         const viewPort = this.getViewPort();
-        const selectedWorkout = this.state.find(w => w.id === this.selectedId);
+        const self = this;
         
         // Prepare list HTML
-        const listHtml = this.state.reduce((acc, workout) => {
+        const listItemsCtx = this.state.map(workout => {
             let graph = '';
-            // We generate the graph string here. Ideally we'd optimize this 
-            // to not regenerate every render if data hasn't changed.
-            if(exists(workout.intervals)) {
-                graph = intervalsToGraph(workout, this.ftp, viewPort);
+            let axis = null;
+            
+            if(workout.intervals) {
+                // Generate graph once
+                const result = intervalsToGraph(workout, this.ftp, viewPort);
+                if (typeof result === 'object' && result.svg) {
+                    graph = result.svg;
+                    axis = result.axis;
+                } else {
+                     graph = result;
+                }
             } else {
                 graph = courseToGraph(workout, viewPort);
             }
-            // Attach graph to object for temp use
-            workout = Object.assign(workout, {graph: graph});
             
-            const isSelected = (workout.id === this.selectedId);
-            return acc + workoutListItemTemplate(workout, isSelected);
-        }, '');
+            // Return context object for template usage, avoid mutating original state if possible
+            // but for now let's just extend a copy
+            return {
+                ...workout,
+                graph,
+                axisData: axis
+            };
+        });
 
+        // Generate Side bar
+        const listHtml = listItemsCtx.map(w => {
+            const isSelected = (w.id === this.selectedId);
+            return workoutListItemTemplate(w, isSelected); 
+        }).join('');
+        
         // Prepare Detail HTML
         let detailHtml = '';
-        if (selectedWorkout) {
-             // Re-use graph generation or use a larger viewport version for detail?
-             // For simplicity, reusing the same graph string but it will expand to fill container
-             detailHtml = workoutDetailTemplate(selectedWorkout);
+        const selectedWorkoutCtx = listItemsCtx.find(w => w.id === this.selectedId);
+        
+        if (selectedWorkoutCtx) {
+             detailHtml = workoutDetailTemplate(selectedWorkoutCtx);
         } else {
-             detailHtml = '<div class="workout-detail-panel">Select a workout</div>';
+             detailHtml = '<div class="workout-detail-panel" style="display:flex; align-items:center; justify-content:center; height:100%; color: #888;">Select a workout to view details</div>';
         }
 
         this.innerHTML = `
             <div class="workout-selector-container">
+                <style>
+                    /* Inline style to ensure layout works with flex */
+                    .workout-selector-container { display: flex; height: 100%; width: 100%; overflow: hidden; }
+                    .workout-list-sidebar { width: 300px; overflow-y: auto; background: #1a1a1a; border-right: 1px solid #333; flex-shrink: 0; }
+                    .workout-detail-panel { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; background: #111; }
+                    .workout-detail--header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+                    .workout-detail--title { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+                    .workout-detail--meta { font-size: 14px; color: #888; }
+                    .workout-detail--load-btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+                    .workout-detail--load-btn:hover { background: #0056b3; }
+                    .workout-detail--graph-container { margin-bottom: 20px; height: 300px; background: #222; position: relative; border-radius: 4px; overflow: hidden; }
+                    .workout-detail--description { line-height: 1.6; color: #ccc; }
+                    /* Axis styling reuse */
+                    .graph--axis-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+                    
+                    /* Workout Item Styles */
+                    .workout-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #333; cursor: pointer; height: 60px; box-sizing: border-box; }
+                    .workout-item:hover { background: #252525; }
+                    .workout-item.selected { background: #333; border-left: 3px solid #007bff; }
+                    .workout-item--mini-summary { flex: 1; min-width: 0; margin-right: 10px; display: flex; flex-direction: column; justify-content: center; }
+                    .workout-item--name { font-weight: bold; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+                    .workout-item--meta { font-size: 11px; color: #888; }
+                    .workout-item--mini-graph { width: 100px; height: 40px; position: relative; opacity: 0.8; flex-shrink: 0; }
+                </style>
                 <div class="workout-list-sidebar">
                     ${listHtml}
                 </div>

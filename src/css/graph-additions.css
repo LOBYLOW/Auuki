@@ -3,63 +3,67 @@ workout-graph {
     display: block;
     width: 100%;
     height: 100%;
+    background: #222; /* Basic background */
     overflow: hidden;
 }
 
-.graph--y-axis {
+.graph--axis-layer {
     position: absolute;
+    top: 0; 
     left: 0;
-    top: 0;
-    width: 40px;
+    width: 100%;
     height: 100%;
     pointer-events: none;
     z-index: 10;
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.5);
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .graph--y-label {
     position: absolute;
-    width: 100%;
-    text-align: right;
-    padding-right: 4px;
-    transform: translateY(-50%);
+    left: 5px; /* Padding from left edge */
+    transform: translateY(50%); /* Center vertically on the tick (bottom-origin) */
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    font-family: sans-serif;
 }
 
-.graph--ftp-line {
+.graph--x-label {
     position: absolute;
-    left: 0;
-    width: 100%;
-    height: 1px;
-    background-color: rgba(0, 255, 0, 0.5);
-    border-top: 1px dashed rgba(0, 255, 0, 0.8);
-    pointer-events: none;
-    z-index: 5;
+    bottom: 2px; /* Slight padding from bottom */
+    transform: translateX(-50%); /* Center horizontally */
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    font-family: sans-serif;
+    white-space: nowrap;
 }
 
 .graph--ftp-label {
     position: absolute;
-    right: 0;
-    transform: translateY(-100%);
-    color: rgba(0, 255, 0, 0.8);
-    font-size: 10px;
-    padding-right: 4px;
+    /* bottom and left are set inline */
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 1px 1px 2px rgba(0,0,0,1);
+    background: rgba(0,0,0,0.3);
+    padding: 2px 4px;
+    border-radius: 3px;
+    transform: translateY(-100%); /* Sit above the line */
 }
 
-.graph--x-axis {
-    bottom: -15px !important; 
-    /* Bars sit on bottom. Axis labels below. */
-    z-index: 20;
-}
-.graph--x-label {
+/* Info Tooltip */
+.graph--info-overlay {
     position: absolute;
-    bottom: 0;
-    transform: translateX(-50%);
-    font-size: 10px;
-    color: rgba(255,255,255,0.4);
-    background: rgba(0,0,0,0.5); /* contrast */
-    padding: 1px 3px;
-    border-radius: 2px;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 100;
+    white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    display: none; /* Hidden by default */
 }
+
 
